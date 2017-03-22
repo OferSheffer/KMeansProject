@@ -4,9 +4,26 @@
 #include <stdio.h>
 #include "Kmeans.h"
 
+#define N		300000		// number of points
+#define MAX		300			// maximum # of clusters to find
+#define LIMIT	2000		// maximum # of iterations for K-means algorithm
+#define QM		17			// quality measure to stop
+
 
 int main()
 {
+	/*  
+	   SoA data layout paradigm (Structure of Arrays)
+	   can result in less load/store operations
+	   Concept: Professional CUDA C Programming - John Cheng
+	*/
+
+	struct innerArray {
+		float x[N];
+		float y[N];
+	};
+
+
 	const int arraySize = 5;
 	const int a[arraySize] = { 1, 2, 3, 4, 5 };
 	const int b[arraySize] = { 10, 20, 30, 40, 50 };
