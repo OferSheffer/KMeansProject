@@ -1,0 +1,24 @@
+1. start a CUDA project (NVIDIA->CUDA) ++(with git)
+2. solution properties, configuration: **All Configurations** + Platform: x64
+3. cpp file
+4. project properties, C/C++ -> Language: Open MP Support: Yes (/openmp)
+5. project properties, C/C++ General -> Additional include directories: "...MPICH2\include"
+Example: C:\Program Files\MPICH2\include
+6. project properties, Linker General -> Additional Library directories: "...MPICH2\lib"
+Example: C:\Program Files\MPICH2\lib
+7. project properties, Linker Input -> Additional Dependencies: mpi.lib
+
+Setup Git Continued:
+1. Create new repository on github (copy https url)
+2. Global settings (Visual Studio): User Name, Email
+3. Console:
+git remote add origin https://github.com/OferSheffer/KMeansProject.git
+
+3. Visual studio:
+Repository settings > Remotes (add)
+3.1. Name 'origin'
+3.2. Fetch/Push: https://github.com/OferSheffer/KMeansProject.git
+
+4. commit: init multi-discipline project (sync/publish)
+
+
