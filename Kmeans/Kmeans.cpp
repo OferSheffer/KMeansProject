@@ -25,14 +25,17 @@ float *pky;			// array to collect data to re-calculate cluster centers
 
 int main()
 {
+	double start, finish;
 	readPointsFromFile();
 	initClusterAssociationArrays();
 
+	start = omp_get_wtime();
+
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 2; ksize <= 3; ksize++)
+	for (long ksize = 45; ksize <= 50; ksize++)
 	{
 		//TODO quick test
-		printf("ksize: %d\n", ksize);
+		//printf("ksize: %d\n", ksize);
 
 
 		mallocSoA(&karray, ksize);
@@ -42,80 +45,77 @@ int main()
 		// for every point: save idx where min(distance from k[idx])
 		//************************************************************/
 
-		// omp version:
-		bool kAssociationChangedFlag = false;
-		//for (long i = 0; i < N; i++)
-		#pragma omp parallel for reduction(|:kAssociationChangedFlag) // TODO: consider adding -- schedule(static,chunk=10) ??
-		for (long i = 0; i < 10; i++)
+		// omp stinks
 		{
-			int prevPka = pka[i];  // save associated cluster idx
-			
-			//option A:
-			getNewPointKCenterAssociation(i, ksize);
-
-			//option B:
-
-
-
-			// TODO: save data for re-calculation of cluster centers 
-
-
-
-
-			if (pka[i] != prevPka)
+			bool kAssociationChangedFlag = false;
+			//for (long i = 0; i < N; i++)
+			#pragma omp parallel for reduction(|:kAssociationChangedFlag)
+			for (long i = 0; i < N; i++)
 			{
-				kAssociationChangedFlag = true;
+				int prevPka = pka[i];  // save associated cluster idx
+
+				//option A:		
+				getNewPointKCenterAssociation(i, ksize);
+
+
+				// TODO: save data for re-calculation of cluster centers 
+
+
+
+
+				if (pka[i] != prevPka)
+				{
+					kAssociationChangedFlag = true;
+				}
 			}
+
+			//TODO quick test
+			//printf("karray:\n");
+			//for (int i = 0; i < ksize; i++)
+			//	printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
+			//for (int i = 0; i < 10; i++)
+			//{
+			//	printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
+			//}
 		}
-
-		//TODO quick test
-		printf("karray:\n");
-		for (int i = 0; i < ksize; i++)
-			printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
-		for (int i = 0; i < 10; i++)
-		{
-			printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
-		}
-
-
-		//TODO: if kAssociationChangedFlag, recalculate cluster centers... yada yada
-
-
 
 		
 
-
+		//TODO: if kAssociationChangedFlag, recalculate cluster centers... yada yada
 
 		//TODO: if breakcondition: break
 		freeSoA(karray);
 	}
 
-
-
-	const int arraySize = 5;
-	const int a[arraySize] = { 1, 2, 3, 4, 5 };
-	const int b[arraySize] = { 10, 20, 30, 40, 50 };
-	int c[arraySize] = { 0 };
+	finish = omp_get_wtime();
+	printf("option a: %f\n", finish - start);
 
 
 
-	// Add vectors in parallel.
-	cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addWithCuda failed!");
-		return 1;
-	}
+	//const int arraySize = 5;
+	//const int a[arraySize] = { 1, 2, 3, 4, 5 };
+	//const int b[arraySize] = { 10, 20, 30, 40, 50 };
+	//int c[arraySize] = { 0 };
 
-	printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
-		c[0], c[1], c[2], c[3], c[4]);
 
-	// cudaDeviceReset must be called before exiting in order for profiling and
-	// tracing tools such as Nsight and Visual Profiler to show complete traces.
-	cudaStatus = cudaDeviceReset();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceReset failed!");
-		return 1;
-	}
+
+	//// Add vectors in parallel.
+	//cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
+	//if (cudaStatus != cudaSuccess) {
+	//	fprintf(stderr, "addWithCuda failed!");
+	//	return 1;
+	//}
+
+	//printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
+	//	c[0], c[1], c[2], c[3], c[4]);
+
+	//// cudaDeviceReset must be called before exiting in order for profiling and
+	//// tracing tools such as Nsight and Visual Profiler to show complete traces.
+	//cudaStatus = cudaDeviceReset();
+	//if (cudaStatus != cudaSuccess) {
+	//	fprintf(stderr, "cudaDeviceReset failed!");
+	//	return 1;
+	//}
 
 
 	freeSoA(xya);
