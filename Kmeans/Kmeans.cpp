@@ -12,27 +12,23 @@ int   MAX;			// maximum # of clusters to find. e.g. 300
 int	  LIMIT;		// maximum # of iterations for K-means algorithm. e.g. 2000
 float QM;			// quality measure to stop. e.g. 17
 
-// SoA: reduce load/store operations
-typedef struct _xyArrays {
-	float *x;
-	float *y;
-} xyArrays;
 xyArrays *xya;
+xyArrays *karray;
 
 int main()
 {
 	readPointsFromFile();
-	
 
-	//TODO quick test
-	for (int i = 0; i < 5; i++)
+	//for (long ksize = 2; ksize <= MAX; ksize++)
+	for (long ksize = 2; ksize <= 2; ksize++)
 	{
-		printf("%d, %f, %f\n", i, xya->x[i], xya->y[i]);
-	}
+		mallocSoA(&karray, ksize);
+		initK(ksize);
 
-	for (int knum = 2; knum <= MAX; knum++)
-	{
 
+
+		//TODO: if breakcondition: break
+		freeSoA(karray);
 	}
 
 
@@ -63,9 +59,7 @@ int main()
 	}
 
 
-	free(xya->x);
-	free(xya->y);
-	free(xya);
+	freeSoA(xya);
 
 	return 0;
 }
@@ -81,11 +75,8 @@ void readPointsFromFile()
 	}
 
 	fscanf(fp, "%ld, %d, %d, %f", &N, &MAX, &LIMIT, &QM);
-
-	xya = (xyArrays*)malloc(sizeof(xyArrays));
-	xya->x = (float*)malloc(N * sizeof(float));
-	xya->y = (float*)malloc(N * sizeof(float));
-
+	mallocSoA(&xya, N);
+	
 	// populate data points:
 	for (long i = 0; i < N; i++)
 	{
@@ -93,3 +84,33 @@ void readPointsFromFile()
 	}
 	fclose(fp);
 }
+
+void mallocSoA(xyArrays** soa, long size)
+{
+	*soa = (xyArrays*)malloc(sizeof(xyArrays));
+	(*soa)->x = (float*)malloc(size * sizeof(float));
+	(*soa)->y = (float*)malloc(size * sizeof(float));
+}
+
+void freeSoA(xyArrays* soa)
+{
+	free(soa->x);
+	free(soa->y);
+	free(soa);
+}
+
+void initK(long ksize)
+{
+	for (long i = 0; i < ksize; i++)
+	{
+		karray->x[i] = xya->x[i];
+		karray->y[i] = xya->y[i];
+	}
+}
+
+
+//TODO quick test
+//for (int i = 0; i < ksize; i++)
+//{
+//	printf("%d, %f, %f\n", i, karray->x[i], karray->y[i]);
+//}
