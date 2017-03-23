@@ -1,0 +1,3 @@
+Robert I. Pitts - fileio
+Professional CUDA C Programming - John Cheng
+- SoA vs AoS

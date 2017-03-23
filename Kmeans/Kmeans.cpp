@@ -2,6 +2,7 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "Kmeans.h"
 
 #define N		300000		// number of points
@@ -12,22 +13,36 @@
 
 int main()
 {
-	/*  
-	   SoA data layout paradigm (Structure of Arrays)
-	   can result in less load/store operations
-	   Concept: Professional CUDA C Programming - John Cheng
-	*/
+	FILE *fp;
+	fp = fopen("", "r");
+	if (fp == NULL) {
+		fprintf(stderr, "Can't open input file");
+		exit(1);
+	}
 
-	struct innerArray {
+	// SoA: reduce load/store operations
+	struct xyArrays {
 		float x[N];
 		float y[N];
 	};
 
+	struct xyArrays xya;
 
-	const int arraySize = 5;
-	const int a[arraySize] = { 1, 2, 3, 4, 5 };
-	const int b[arraySize] = { 10, 20, 30, 40, 50 };
-	int c[arraySize] = { 0 };
+	// populate data points:
+	for (long i = 0; i < N; i++)
+	{
+		fscanf(fp, "%d %s %d", username, &score)
+	}
+
+	fclose(fp);
+
+
+	//const int arraySize = 5;
+	//const int a[arraySize] = { 1, 2, 3, 4, 5 };
+	//const int b[arraySize] = { 10, 20, 30, 40, 50 };
+	//int c[arraySize] = { 0 };
+
+
 
 	// Add vectors in parallel.
 	cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
