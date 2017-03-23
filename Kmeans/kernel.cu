@@ -3,6 +3,7 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
+#include "Kmeans.h"
 
 __global__ void addKernel(int *c, const int *a, const int *b)
 {

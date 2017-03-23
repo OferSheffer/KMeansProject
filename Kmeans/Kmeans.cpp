@@ -7,45 +7,34 @@
 
 //TODO: consider adding a delimiter (testfile: ',' -- presentation: ' ')
 
+long  N;			// number of points. e.g. 300000
+int   MAX;			// maximum # of clusters to find. e.g. 300
+int	  LIMIT;		// maximum # of iterations for K-means algorithm. e.g. 2000
+float QM;			// quality measure to stop. e.g. 17
+
 // SoA: reduce load/store operations
 typedef struct _xyArrays {
 	float *x;
 	float *y;
 } xyArrays;
-
+xyArrays *xya;
 
 int main()
 {
-
-	long  N;			// number of points. e.g. 300000
-	int   MAX;			// maximum # of clusters to find. e.g. 300
-	int	  LIMIT;		// maximum # of iterations for K-means algorithm. e.g. 2000
-	float QM;			// quality measure to stop. e.g. 17
-
-	FILE *fp;
-	fp = fopen("large_testinput_guy.txt", "r");
-	if (fp == NULL) {
-		fprintf(stderr, "Can't open input file\n");
-		exit(1);
-	}
-
-	fscanf(fp, "%ld, %d, %d, %f", &N, &MAX, &LIMIT, &QM);
+	readPointsFromFile();
 	
-	xyArrays *xya = (xyArrays*)malloc(sizeof(xyArrays));
-	xya->x = (float*)malloc(N * sizeof(float));
-	xya->y = (float*)malloc(N * sizeof(float));
 
-	// populate data points:
-	for (long i = 0; i < N; i++)
-	{
-		fscanf(fp, "%d, %f, %f", &i, &(xya->x[i]), &(xya->y)[i]);
-	}
-	fclose(fp);
-
+	//TODO quick test
 	for (int i = 0; i < 5; i++)
 	{
 		printf("%d, %f, %f\n", i, xya->x[i], xya->y[i]);
 	}
+
+	for (int knum = 2; knum <= MAX; knum++)
+	{
+
+	}
+
 
 
 	const int arraySize = 5;
@@ -73,5 +62,34 @@ int main()
 		return 1;
 	}
 
+
+	free(xya->x);
+	free(xya->y);
+	free(xya);
+
 	return 0;
+}
+
+
+void readPointsFromFile()
+{
+	FILE *fp;
+	fp = fopen("large_testinput_guy.txt", "r");
+	if (fp == NULL) {
+		fprintf(stderr, "Can't open input file\n");
+		exit(1);
+	}
+
+	fscanf(fp, "%ld, %d, %d, %f", &N, &MAX, &LIMIT, &QM);
+
+	xya = (xyArrays*)malloc(sizeof(xyArrays));
+	xya->x = (float*)malloc(N * sizeof(float));
+	xya->y = (float*)malloc(N * sizeof(float));
+
+	// populate data points:
+	for (long i = 0; i < N; i++)
+	{
+		fscanf(fp, "%d, %f, %f", &i, &(xya->x[i]), &(xya->y)[i]);
+	}
+	fclose(fp);
 }
