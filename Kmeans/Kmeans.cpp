@@ -1,6 +1,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "Kmeans.h"
@@ -12,18 +13,50 @@ int   MAX;			// maximum # of clusters to find. e.g. 300
 int	  LIMIT;		// maximum # of iterations for K-means algorithm. e.g. 2000
 float QM;			// quality measure to stop. e.g. 17
 
-xyArrays *xya;
-xyArrays *karray;
+xyArrays *xya;		// SoA of the data
+xyArrays *karray;	// SoA of k-mean vertices
+int *pka;			// array to associate xya points with their closest cluster
 
 int main()
 {
 	readPointsFromFile();
+	pka = (int*)malloc(N * sizeof(int));
 
 	//for (long ksize = 2; ksize <= MAX; ksize++)
 	for (long ksize = 2; ksize <= 2; ksize++)
 	{
 		mallocSoA(&karray, ksize);
 		initK(ksize);
+
+		//************************************************************/
+		// for every point: save idx where min(distance from k[idx])
+		//************************************************************/
+
+		// omp version:
+		//for (long i = 0; i < N; i++)
+		for (long i = 0; i < 5; i++)
+		{
+			float minSquareDist = INFINITY;
+			float curSquareDist = 0;
+			for (long idx = 0; idx < ksize; idx++)
+			{
+				curSquareDist = powf(xya->x[i] - karray->x[idx], 2) + powf(xya->y[i] - karray->y[idx], 2);
+				if (curSquareDist < minSquareDist)
+				{
+					minSquareDist = curSquareDist;
+					pka[i] = idx;
+				}
+			}
+		}
+
+		//TODO quick test
+		printf("karray:\n");
+		printf("%d, %6.3f, %6.3f\n", 0, karray->x[0], karray->y[0]);
+		printf("%d, %6.3f, %6.3f\n", 1, karray->x[1], karray->y[1]);
+		for (int i = 0; i < 5; i++)
+		{
+			printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
+		}
 
 
 
@@ -60,7 +93,7 @@ int main()
 
 
 	freeSoA(xya);
-
+	free(pka);
 	return 0;
 }
 
