@@ -38,7 +38,7 @@ int main()
 	// populate data points:
 	for (long i = 0; i < N; i++)
 	{
-		fscanf(fp, "%d, %f, %f", &i, &((xya->x)[i]), &((xya->y)[i]));
+		fscanf(fp, "%d, %f, %f", &i, &(xya->x[i]), &(xya->y)[i]);
 	}
 	fclose(fp);
 
