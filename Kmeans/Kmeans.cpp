@@ -2,6 +2,7 @@
 #include "device_launch_parameters.h"
 
 #include <math.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "Kmeans.h"
@@ -16,15 +17,24 @@ float QM;			// quality measure to stop. e.g. 17
 xyArrays *xya;		// SoA of the data
 xyArrays *karray;	// SoA of k-mean vertices
 int *pka;			// array to associate xya points with their closest cluster
+float *pkx;			// array to collect data to re-calculate cluster centers
+float *pky;			// array to collect data to re-calculate cluster centers
+
+
+//TODO: use single/double precision in the CUDA computations (half?)
 
 int main()
 {
 	readPointsFromFile();
-	pka = (int*)malloc(N * sizeof(int));
+	initClusterAssociationArrays();
 
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 2; ksize <= 2; ksize++)
+	for (long ksize = 2; ksize <= 3; ksize++)
 	{
+		//TODO quick test
+		printf("ksize: %d\n", ksize);
+
+
 		mallocSoA(&karray, ksize);
 		initK(ksize);
 
@@ -33,30 +43,46 @@ int main()
 		//************************************************************/
 
 		// omp version:
+		bool kAssociationChangedFlag = false;
 		//for (long i = 0; i < N; i++)
-		for (long i = 0; i < 5; i++)
+		#pragma omp parallel for reduction(|:kAssociationChangedFlag) // TODO: consider adding -- schedule(static,chunk=10) ??
+		for (long i = 0; i < 10; i++)
 		{
-			float minSquareDist = INFINITY;
-			float curSquareDist = 0;
-			for (long idx = 0; idx < ksize; idx++)
+			int prevPka = pka[i];  // save associated cluster idx
+			
+			//option A:
+			getNewPointKCenterAssociation(i, ksize);
+
+			//option B:
+
+
+
+			// TODO: save data for re-calculation of cluster centers 
+
+
+
+
+			if (pka[i] != prevPka)
 			{
-				curSquareDist = powf(xya->x[i] - karray->x[idx], 2) + powf(xya->y[i] - karray->y[idx], 2);
-				if (curSquareDist < minSquareDist)
-				{
-					minSquareDist = curSquareDist;
-					pka[i] = idx;
-				}
+				kAssociationChangedFlag = true;
 			}
 		}
 
 		//TODO quick test
 		printf("karray:\n");
-		printf("%d, %6.3f, %6.3f\n", 0, karray->x[0], karray->y[0]);
-		printf("%d, %6.3f, %6.3f\n", 1, karray->x[1], karray->y[1]);
-		for (int i = 0; i < 5; i++)
+		for (int i = 0; i < ksize; i++)
+			printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
+		for (int i = 0; i < 10; i++)
 		{
 			printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
 		}
+
+
+		//TODO: if kAssociationChangedFlag, recalculate cluster centers... yada yada
+
+
+
+		
 
 
 
@@ -138,6 +164,31 @@ void initK(long ksize)
 	{
 		karray->x[i] = xya->x[i];
 		karray->y[i] = xya->y[i];
+	}
+}
+
+void initClusterAssociationArrays()
+{
+	pka = (int*)malloc(N * sizeof(int));
+
+	for (long i = 0; i < N; i++)
+	{
+		pka[i] = -1; // no cluster
+	}
+}
+
+void getNewPointKCenterAssociation(long i, int ksize)
+{
+	float minSquareDist = INFINITY;
+	float curSquareDist;
+	for (long idx = 0; idx < ksize; idx++)
+	{
+		curSquareDist = powf(xya->x[i] - karray->x[idx], 2) + powf(xya->y[i] - karray->y[idx], 2);
+		if (curSquareDist < minSquareDist)
+		{
+			minSquareDist = curSquareDist;
+			pka[i] = idx;
+		}
 	}
 }
 

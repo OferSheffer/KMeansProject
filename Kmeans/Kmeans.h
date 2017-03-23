@@ -17,3 +17,5 @@ void readPointsFromFile();
 void mallocSoA(xyArrays** soa, long size);
 void freeSoA(xyArrays* soa);
 void initK(long ksize);
+void initClusterAssociationArrays();
+void getNewPointKCenterAssociation(long i, int ksize);
