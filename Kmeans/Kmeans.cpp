@@ -51,6 +51,7 @@ int main()
 				#pragma omp parallel for reduction(|:kAssociationChangedFlag)
 				for (long i = 0; i < 20; i++)
 				{
+					printf("id: %d, running i: %d\n", omp_get_thread_num(), i);
 					int prevPka = pka[i];  // save associated cluster idx
 
 					//option A:		
@@ -58,8 +59,6 @@ int main()
 
 
 					// TODO: save data for re-calculation of cluster centers 
-
-
 
 
 					if (pka[i] != prevPka)
@@ -134,11 +133,8 @@ void readPointsFromFile()
 		exit(1);
 	}
 
-	fscanf(fp, "%ld, %d, %d, %f", &N, &MAX, &LIMIT, &QM);
-	
-	populateSoA(fp);
-	
-
+	fscanf(fp, "%ld, %d, %d, %f", &N, &MAX, &LIMIT, &QM);	// obtain core info from first line	
+	populateSoA(fp);										// populate data into xya
 
 	fclose(fp);
 }
@@ -147,11 +143,8 @@ void populateSoA(FILE* fp)
 {
 	mallocSoA(&xya, N);
 
-	// populate data points:
 	for (long i = 0; i < N; i++)
-	{
 		fscanf(fp, "%d, %f, %f", &i, &(xya->x[i]), &(xya->y)[i]);
-	}
 }
 
 
