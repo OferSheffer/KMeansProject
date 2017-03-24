@@ -20,6 +20,7 @@ float QM;			// quality measure to stop. e.g. 17
 xyArrays *xya;		// SoA of the data
 xyArrays *karray;	// SoA of k-mean vertices
 int *pka;			// array to associate xya points with their closest cluster
+float kQuality;		// quality of current cluster configuration;
 
 
 //TODO: use single/double precision in the CUDA computations (half?)
@@ -33,98 +34,34 @@ int main()
 	start = omp_get_wtime();
 
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 2; ksize <= 2; ksize++)
+	for (long ksize = 50; ksize <= 50; ksize++)
 	{
 		//TODO quick test
 		//printf("ksize: %d\n", ksize);
 		int iter = 0;
 		mallocSoA(&karray, ksize);
 		initK(ksize);
+		bool kAssociationChangedFlag = true;
+		do {
+			kAssociationChangedFlag = reCluster(ksize);
+		} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
 
-		while (iter < LIMIT)
+
+		//TODO: getKQuality();
+		//if (kQuality < QM)
+		if (true)
 		{
-			// for every point: save idx where min(distance from k[idx])
-
-			bool kAssociationChangedFlag = false;
-			//for (long i = 0; i < N; i++)
-#pragma omp parallel for reduction(|:kAssociationChangedFlag)
-			for (long i = 0; i < N; i++)
-			{
-				int prevPka = pka[i];  // save associated cluster idx
-				getNewPointKCenterAssociation(i, ksize);
-				if (pka[i] != prevPka)
-				{
-					kAssociationChangedFlag = true;
-				}
-			}
-
-			// re-calculate cluster centers
-			/*
-			each thread given pseudo-private 1D arrays of size:  threads# x k#
-			e.g. ksize = 3, threads = 4:
-			step 1:
-			indices 0,4,8 will be accessed by thread 0: e.g. [4] sum x that belongs to cluster 1
-			indices 1,5,9 will be accessed by thread 1
-			step 2:
-			sum each row (e.g. row 0) to get totals of k[0]
-			i.e. x_tot, y_tot, count_tot
-			step 3:
-			divide x_tot,y_tot by count_tot for new k[0] center value.
-			*/
-
-			float* ompSumXArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
-			float* ompSumYArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
-			int* ompCntPArr = (int*)calloc(NO_OMP_THREADS * ksize, sizeof(int));
-
-			// step 1:
-#pragma omp parallel for num_threads(NO_OMP_THREADS) // scheduling?
-			//for (long i = 0; i < N; i++)
-			for (int i = 0; i < N; i++)
-			{
-				int ompArrIdx = pka[i] * NO_OMP_THREADS + omp_get_thread_num();  // row: pka[i]*NO_OMP_THREADS, col: thread id
-				ompCntPArr[ompArrIdx]++;
-				ompSumXArr[ompArrIdx] += xya->x[i];
-				ompSumYArr[ompArrIdx] += xya->y[i];
-			}
-
-			// steps 2+3:
-#pragma omp parallel for
-			for (int idx = 0; idx < ksize; idx++)
-			{
-				long count = 0;
-				for (int i = idx*NO_OMP_THREADS; i < idx*NO_OMP_THREADS + NO_OMP_THREADS; i++)
-				{
-					karray->x[idx] += ompSumXArr[i];
-					karray->y[idx] += ompSumYArr[i];
-					count += ompCntPArr[i];
-				}
-				//complete center calculation
-				karray->x[idx] /= count;
-				karray->y[idx] /= count;
-			}
-
-			free(ompSumXArr);
-			free(ompSumYArr);
-			free(ompCntPArr);
-
-			// no association changes, no need to re-cluster
-			if (!kAssociationChangedFlag)
-				break;
-				
-			iter++;
+			//quicktest
+			printf("karray:\n");
+			for (int i = 0; i < ksize; i++)
+				printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
+			//TODO: print to file
+			break;
 		}
-		
-		//quicktest
-		printf("karray:\n");
-		for (int i = 0; i < ksize; i++)
-			printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
-
+			
 
 	}
-
 	
-
-	//TODO: if breakcondition: break, print, free
 	freeSoA(karray);
 
 
@@ -188,6 +125,95 @@ void populateSoA(FILE* fp)
 	for (long i = 0; i < N; i++)
 		fscanf(fp, "%d, %f, %f", &i, &(xya->x[i]), &(xya->y)[i]);
 }
+
+
+bool reCluster(int ksize)
+{
+	bool kAssociationChangedFlag = false;
+
+	// for every point: save idx where min(distance from k[idx])
+	#pragma omp parallel for reduction(|:kAssociationChangedFlag)
+	for (long i = 0; i < N; i++)
+	{
+		int prevPka = pka[i];  // save associated cluster idx
+		getNewPointKCenterAssociation(i, ksize);
+		if (pka[i] != prevPka)
+		{
+			kAssociationChangedFlag = true;
+		}
+	}
+
+	//reCenter
+	// re-calculate cluster centers:
+	// *****************************
+	/*
+	each thread given pseudo-private 1D arrays of size:  threads# x k#
+	e.g. ksize = 3, threads = 4:
+	step 1:
+	indices 0,4,8 will be accessed by thread 0: e.g. [4] sum x that belongs to cluster 1
+	indices 1,5,9 will be accessed by thread 1
+
+	step 2: sum each row (e.g. row 0) to get totals of k[0]
+	i.e. x_tot, y_tot, count_tot
+	step 3: divide x_tot,y_tot by count_tot for new k[0] center value.
+	*/
+
+	float* ompSumXArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
+	float* ompSumYArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
+	int*   ompCntPArr = (int*)  calloc(NO_OMP_THREADS * ksize, sizeof(int));
+
+	// step 1:
+#pragma omp parallel for num_threads(NO_OMP_THREADS) // TODO: scheduling?
+	//for (long i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
+	{
+		int ompArrIdx = pka[i] * NO_OMP_THREADS + omp_get_thread_num();  // row: pka[i]*NO_OMP_THREADS, col: thread id
+		ompCntPArr[ompArrIdx]++;
+		ompSumXArr[ompArrIdx] += xya->x[i];
+		ompSumYArr[ompArrIdx] += xya->y[i];
+	}
+
+	// steps 2+3:
+#pragma omp parallel for
+	for (int idx = 0; idx < ksize; idx++)
+	{
+		//TODO: gotta decide where in karray to change the value....
+
+		long count = 0;
+		for (int i = idx*NO_OMP_THREADS; i < idx*NO_OMP_THREADS + NO_OMP_THREADS; i++)
+		{
+			karray->x[idx] += ompSumXArr[i];
+			karray->y[idx] += ompSumYArr[i];
+			count += ompCntPArr[i];
+		}
+		//complete center calculation
+		karray->x[idx] /= count;
+		karray->y[idx] /= count;
+	}
+
+	free(ompSumXArr);
+	free(ompSumYArr);
+	free(ompCntPArr);
+
+
+	return kAssociationChangedFlag;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 void mallocSoA(xyArrays** soa, long size)

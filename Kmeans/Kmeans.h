@@ -17,6 +17,8 @@ void readPointsFromFile();
 void populateSoA(FILE* fp);
 
 
+bool reCluster(int ksize);
+
 void mallocSoA(xyArrays** soa, long size);
 void freeSoA(xyArrays* soa);
 void initK(long ksize);
