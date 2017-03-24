@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include "Kmeans.h"
 
+#define NO_OMP_THREADS 4	// OMP: 4 core laptop
+
+
 //TODO: consider adding a delimiter (testfile: ',' -- presentation: ' ')
 
 long  N;			// number of points. e.g. 300000
@@ -17,8 +20,6 @@ float QM;			// quality measure to stop. e.g. 17
 xyArrays *xya;		// SoA of the data
 xyArrays *karray;	// SoA of k-mean vertices
 int *pka;			// array to associate xya points with their closest cluster
-float *pkx;			// array to collect data to re-calculate cluster centers
-float *pky;			// array to collect data to re-calculate cluster centers
 
 
 //TODO: use single/double precision in the CUDA computations (half?)
@@ -32,49 +33,96 @@ int main()
 	start = omp_get_wtime();
 
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 2; ksize <= 3; ksize++)
+	for (long ksize = 2; ksize <= 2; ksize++)
 	{
 		//TODO quick test
 		//printf("ksize: %d\n", ksize);
-
+		int iter = 0;
 		mallocSoA(&karray, ksize);
 		initK(ksize);
 
-		//************************************************************/
-		// for every point: save idx where min(distance from k[idx])
-		//************************************************************/
+		while (iter < LIMIT)
+		{
+			// for every point: save idx where min(distance from k[idx])
 
-		bool kAssociationChangedFlag = false;
-		//for (long i = 0; i < N; i++)
-		#pragma omp parallel for reduction(|:kAssociationChangedFlag)
-		for (long i = 0; i < 10; i++)
-		{				
-			int prevPka = pka[i];  // save associated cluster idx
-			getNewPointKCenterAssociation(i, ksize);
-
-			// TODO: save data for re-calculation of cluster centers 
-
-
-			if (pka[i] != prevPka)
+			bool kAssociationChangedFlag = false;
+			//for (long i = 0; i < N; i++)
+#pragma omp parallel for reduction(|:kAssociationChangedFlag)
+			for (long i = 0; i < N; i++)
 			{
-				kAssociationChangedFlag = true;
+				int prevPka = pka[i];  // save associated cluster idx
+				getNewPointKCenterAssociation(i, ksize);
+				if (pka[i] != prevPka)
+				{
+					kAssociationChangedFlag = true;
+				}
 			}
-		}
 
-		//TODO quick test
-		//printf("karray:\n");
-		//for (int i = 0; i < ksize; i++)
-		//	printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
-		//for (int i = 0; i < 10; i++)
-		//{
-		//	printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
-		//}
+			// re-calculate cluster centers
+			/*
+			each thread given pseudo-private 1D arrays of size:  threads# x k#
+			e.g. ksize = 3, threads = 4:
+			step 1:
+			indices 0,4,8 will be accessed by thread 0: e.g. [4] sum x that belongs to cluster 1
+			indices 1,5,9 will be accessed by thread 1
+			step 2:
+			sum each row (e.g. row 0) to get totals of k[0]
+			i.e. x_tot, y_tot, count_tot
+			step 3:
+			divide x_tot,y_tot by count_tot for new k[0] center value.
+			*/
+
+			float* ompSumXArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
+			float* ompSumYArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
+			int* ompCntPArr = (int*)calloc(NO_OMP_THREADS * ksize, sizeof(int));
+
+			// step 1:
+#pragma omp parallel for num_threads(NO_OMP_THREADS) // scheduling?
+			//for (long i = 0; i < N; i++)
+			for (int i = 0; i < N; i++)
+			{
+				int ompArrIdx = pka[i] * NO_OMP_THREADS + omp_get_thread_num();  // row: pka[i]*NO_OMP_THREADS, col: thread id
+				ompCntPArr[ompArrIdx]++;
+				ompSumXArr[ompArrIdx] += xya->x[i];
+				ompSumYArr[ompArrIdx] += xya->y[i];
+			}
+
+			// steps 2+3:
+#pragma omp parallel for
+			for (int idx = 0; idx < ksize; idx++)
+			{
+				long count = 0;
+				for (int i = idx*NO_OMP_THREADS; i < idx*NO_OMP_THREADS + NO_OMP_THREADS; i++)
+				{
+					karray->x[idx] += ompSumXArr[i];
+					karray->y[idx] += ompSumYArr[i];
+					count += ompCntPArr[i];
+				}
+				//complete center calculation
+				karray->x[idx] /= count;
+				karray->y[idx] /= count;
+			}
+
+			free(ompSumXArr);
+			free(ompSumYArr);
+			free(ompCntPArr);
+
+			// no association changes, no need to re-cluster
+			if (!kAssociationChangedFlag)
+				break;
+				
+			iter++;
+		}
+		
+		//quicktest
+		printf("karray:\n");
+		for (int i = 0; i < ksize; i++)
+			printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
+
+
 	}
 
-
-
-
-	//TODO: if kAssociationChangedFlag, recalculate cluster centers... yada yada
+	
 
 	//TODO: if breakcondition: break, print, free
 	freeSoA(karray);
@@ -165,6 +213,15 @@ void initK(long ksize)
 	}
 }
 
+void resetK(long ksize)
+{
+	for (long i = 0; i < ksize; i++)
+	{
+		karray->x[i] = 0;
+		karray->y[i] = 0;
+	}
+}
+
 void initClusterAssociationArrays()
 {
 	pka = (int*)malloc(N * sizeof(int));
@@ -195,6 +252,12 @@ void getNewPointKCenterAssociation(long i, int ksize)
 //for (int i = 0; i < ksize; i++)
 //{
 //	printf("%d, %f, %f\n", i, karray->x[i], karray->y[i]);
+//}
+
+//TODO quick test
+//for (int i = 0; i < 10; i++)
+//{
+//	printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
 //}
 
 //TODO quick omp thread check
