@@ -32,11 +32,10 @@ int main()
 	start = omp_get_wtime();
 
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 45; ksize <= 50; ksize++)
+	for (long ksize = 2; ksize <= 4; ksize++)
 	{
 		//TODO quick test
 		//printf("ksize: %d\n", ksize);
-
 
 		mallocSoA(&karray, ksize);
 		initK(ksize);
@@ -47,39 +46,40 @@ int main()
 
 		// omp stinks
 		{
-			bool kAssociationChangedFlag = false;
-			//for (long i = 0; i < N; i++)
-			#pragma omp parallel for reduction(|:kAssociationChangedFlag)
-			for (long i = 0; i < N; i++)
-			{
-				int prevPka = pka[i];  // save associated cluster idx
-
-				//option A:		
-				getNewPointKCenterAssociation(i, ksize);
-
-
-				// TODO: save data for re-calculation of cluster centers 
-
-
-
-
-				if (pka[i] != prevPka)
+				bool kAssociationChangedFlag = false;
+				//for (long i = 0; i < N; i++)
+				#pragma omp parallel for reduction(|:kAssociationChangedFlag)
+				for (long i = 0; i < 20; i++)
 				{
-					kAssociationChangedFlag = true;
-				}
-			}
+					int prevPka = pka[i];  // save associated cluster idx
 
-			//TODO quick test
-			//printf("karray:\n");
-			//for (int i = 0; i < ksize; i++)
-			//	printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
-			//for (int i = 0; i < 10; i++)
-			//{
-			//	printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
-			//}
+					//option A:		
+					getNewPointKCenterAssociation(i, ksize);
+
+
+					// TODO: save data for re-calculation of cluster centers 
+
+
+
+
+					if (pka[i] != prevPka)
+					{
+						kAssociationChangedFlag = true;
+					}
+				}
+
+				//TODO quick test
+				//printf("karray:\n");
+				//for (int i = 0; i < ksize; i++)
+				//	printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
+				//for (int i = 0; i < 10; i++)
+				//{
+				//	printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
+				//}
 		}
 
-		
+
+
 
 		//TODO: if kAssociationChangedFlag, recalculate cluster centers... yada yada
 
@@ -91,7 +91,8 @@ int main()
 	printf("option a: %f\n", finish - start);
 
 
-
+	//old cuda code
+	{
 	//const int arraySize = 5;
 	//const int a[arraySize] = { 1, 2, 3, 4, 5 };
 	//const int b[arraySize] = { 10, 20, 30, 40, 50 };
@@ -116,7 +117,7 @@ int main()
 	//	fprintf(stderr, "cudaDeviceReset failed!");
 	//	return 1;
 	//}
-
+	}
 
 	freeSoA(xya);
 	free(pka);
@@ -134,15 +135,25 @@ void readPointsFromFile()
 	}
 
 	fscanf(fp, "%ld, %d, %d, %f", &N, &MAX, &LIMIT, &QM);
-	mallocSoA(&xya, N);
 	
+	populateSoA(fp);
+	
+
+
+	fclose(fp);
+}
+
+void populateSoA(FILE* fp)
+{
+	mallocSoA(&xya, N);
+
 	// populate data points:
 	for (long i = 0; i < N; i++)
 	{
 		fscanf(fp, "%d, %f, %f", &i, &(xya->x[i]), &(xya->y)[i]);
 	}
-	fclose(fp);
 }
+
 
 void mallocSoA(xyArrays** soa, long size)
 {

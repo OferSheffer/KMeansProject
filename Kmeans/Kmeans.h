@@ -14,6 +14,9 @@ typedef struct _xyArrays {
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
 void readPointsFromFile();
+void populateSoA(FILE* fp);
+
+
 void mallocSoA(xyArrays** soa, long size);
 void freeSoA(xyArrays* soa);
 void initK(long ksize);
