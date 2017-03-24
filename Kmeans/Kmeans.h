@@ -22,3 +22,4 @@ void freeSoA(xyArrays* soa);
 void initK(long ksize);
 void initClusterAssociationArrays();
 void getNewPointKCenterAssociation(long i, int ksize);
+void getNewPointKCenterAssociationXYBarrier(long i, int ksize);

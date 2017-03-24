@@ -32,7 +32,7 @@ int main()
 	start = omp_get_wtime();
 
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 2; ksize <= 4; ksize++)
+	for (long ksize = 2; ksize <= 3; ksize++)
 	{
 		//TODO quick test
 		//printf("ksize: %d\n", ksize);
@@ -44,50 +44,44 @@ int main()
 		// for every point: save idx where min(distance from k[idx])
 		//************************************************************/
 
-		// omp stinks
-		{
-				bool kAssociationChangedFlag = false;
-				//for (long i = 0; i < N; i++)
-				#pragma omp parallel for reduction(|:kAssociationChangedFlag)
-				for (long i = 0; i < 20; i++)
-				{
-					printf("id: %d, running i: %d\n", omp_get_thread_num(), i);
-					int prevPka = pka[i];  // save associated cluster idx
+		bool kAssociationChangedFlag = false;
+		//for (long i = 0; i < N; i++)
+		#pragma omp parallel for reduction(|:kAssociationChangedFlag)
+		for (long i = 0; i < 10; i++)
+		{				
+			int prevPka = pka[i];  // save associated cluster idx
+			getNewPointKCenterAssociation(i, ksize);
 
-					//option A:		
-					getNewPointKCenterAssociation(i, ksize);
+			// TODO: save data for re-calculation of cluster centers 
 
 
-					// TODO: save data for re-calculation of cluster centers 
-
-
-					if (pka[i] != prevPka)
-					{
-						kAssociationChangedFlag = true;
-					}
-				}
-
-				//TODO quick test
-				//printf("karray:\n");
-				//for (int i = 0; i < ksize; i++)
-				//	printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
-				//for (int i = 0; i < 10; i++)
-				//{
-				//	printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
-				//}
+			if (pka[i] != prevPka)
+			{
+				kAssociationChangedFlag = true;
+			}
 		}
 
-
-
-
-		//TODO: if kAssociationChangedFlag, recalculate cluster centers... yada yada
-
-		//TODO: if breakcondition: break
-		freeSoA(karray);
+		//TODO quick test
+		//printf("karray:\n");
+		//for (int i = 0; i < ksize; i++)
+		//	printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
+		//for (int i = 0; i < 10; i++)
+		//{
+		//	printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
+		//}
 	}
 
+
+
+
+	//TODO: if kAssociationChangedFlag, recalculate cluster centers... yada yada
+
+	//TODO: if breakcondition: break, print, free
+	freeSoA(karray);
+
+
 	finish = omp_get_wtime();
-	printf("option a: %f\n", finish - start);
+	printf("run-time: %f\n", finish - start);
 
 
 	//old cuda code
@@ -202,3 +196,6 @@ void getNewPointKCenterAssociation(long i, int ksize)
 //{
 //	printf("%d, %f, %f\n", i, karray->x[i], karray->y[i]);
 //}
+
+//TODO quick omp thread check
+//printf("id: %d, running i: %d\n", omp_get_thread_num(), i);

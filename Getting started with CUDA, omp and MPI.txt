@@ -1,5 +1,6 @@
 1. start a CUDA project (NVIDIA->CUDA) ++(with git)
 2. solution properties, configuration: **All Configurations** + Platform: x64
+2.1. solution properties, configuration: "Configuration Manager..." (Debug+Release: Platform x64)
 3. cpp file
 4. project properties, C/C++ -> Language: Open MP Support: Yes (/openmp)
 5. project properties, C/C++ General -> Additional include directories: "...MPICH2\include"
