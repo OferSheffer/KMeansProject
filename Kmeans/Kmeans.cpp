@@ -34,7 +34,7 @@ int main()
 	start = omp_get_wtime();
 
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 50; ksize <= 50; ksize++)
+	for (long ksize = 20; ksize <= 20; ksize++)
 	{
 		//TODO quick test
 		//printf("ksize: %d\n", ksize);
@@ -43,11 +43,19 @@ int main()
 		initK(ksize);
 		bool kAssociationChangedFlag = true;
 		do {
+			//printf("iter %d\n", iter + 1);
 			kAssociationChangedFlag = reCluster(ksize);
 		} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
 
 
 		//TODO: getKQuality();
+		//TODO1: for every cluster - get diameter
+
+
+
+		//TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
+
+
 		//if (kQuality < QM)
 		if (true)
 		{
@@ -174,6 +182,11 @@ bool reCluster(int ksize)
 	}
 
 	// steps 2+3:
+	//TODO: test prepK erases only what it should erase and keeps values it should not touch (clusters without points)
+	prepK(ompCntPArr, ksize);
+
+
+
 #pragma omp parallel for
 	for (int idx = 0; idx < ksize; idx++)
 	{
@@ -239,12 +252,21 @@ void initK(long ksize)
 	}
 }
 
-void resetK(long ksize)
+void prepK(int* ompCntPArr, long ksize)
 {
-	for (long i = 0; i < ksize; i++)
+	// reset Kxy to 0 where there are points in the new assignments
+	#pragma omp parallel for
+	for (int idx = 0; idx < ksize; idx++)
 	{
-		karray->x[i] = 0;
-		karray->y[i] = 0;
+		for (int i = idx*NO_OMP_THREADS; i < idx*NO_OMP_THREADS + NO_OMP_THREADS; i++)
+		{
+			if (ompCntPArr[i]>0)
+			{
+				karray->x[idx] = 0;
+				karray->y[idx] = 0;
+				break;
+			}
+		}
 	}
 }
 
