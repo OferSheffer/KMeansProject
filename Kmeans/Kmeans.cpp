@@ -29,84 +29,73 @@ float kQuality;		// quality of current cluster configuration;
 int main()
 {
 	double start, finish;
-	readPointsFromFile();
+	readPointsFromFile();			 // init xya with data
 	initClusterAssociationArrays();  // no cluster (-1)
 
 	start = omp_get_wtime();
 
-	ompGo();
+	//ompGo();
 
 	//TODO: cudaGo();
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	//for (long ksize = 5; ksize <= 5; ksize++)
-	//{
-	//	//TODO quick test
-	//	//printf("ksize: %d\n", ksize);
-	//	//int iter = 0;
-	//	mallocSoA(&kCenters, ksize);
-	//	initK(ksize);				// K-centers = first points in data 
-	//	bool kAssociationChangedFlag = true;
-	//	do {
-	//		//printf("iter %d\n", iter + 1);
-	//		kAssociationChangedFlag = reCluster(ksize);
-	//	} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
+	for (long ksize = 5; ksize <= 5; ksize++)
+	{
+		//TODO quick test
+		printf("ksize: %d\n", ksize);
+
+		mallocSoA(&kCenters, ksize);
+
+		// allocate host memory
+		size_t nBytes = sizeof(xya);
+		/*innerStruct *h_A = (innerStruct *)malloc(nBytes);
+		innerStruct *hostRef = (innerStruct *)malloc(nBytes);
+		innerStruct *gpuRef = (innerStruct *)malloc(nBytes);*/
+
+		//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
+		cudaError_t cudaStatus = kCentersWithCuda(kCenters, xya, N, ksize);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "kCentersWithCuda failed!");
+			return 1;
+		}
+
+		//bool kAssociationChangedFlag = true;
+		//do {
+		//	//printf("iter %d\n", iter + 1);
+		//	kAssociationChangedFlag = reCluster(ksize);
+		//} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
 
 
-	//	//TODO: getKQuality();
-	//	//TODO1: for every cluster - get diameter
+		////TODO: getKQuality();
+		////TODO1: for every cluster - get diameter
 
 
 
-	//	//TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
+		////TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
 
 
-	//	//if (kQuality < QM)
-	//	if (true)
-	//	{
-	//		//quicktest
-	//		printf("kCenters:\n");
-	//		for (int i = 0; i < ksize; i++)
-	//			printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
-	//		//TODO: print to file
-	//		break;
-	//	}
-	//		
-	//}
+		////if (kQuality < QM)
+		//if (true)
+		//{
+		//	//quicktest
+		//	printf("kCenters:\n");
+		//	for (int i = 0; i < ksize; i++)
+		//		printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
+		//	//TODO: print to file
+		//	break;
+		//}
+		
+		cudaStatus = cudaDeviceReset();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceReset failed!");
+			return 1;
+		}
+	}
 	
-	//freeSoA(kCenters);
+	freeSoA(kCenters);
 
 
 	finish = omp_get_wtime();
 	printf("run-time: %f\n", finish - start);
-
-
-	//old cuda code
-	{
-	//const int arraySize = 5;
-	//const int a[arraySize] = { 1, 2, 3, 4, 5 };
-	//const int b[arraySize] = { 10, 20, 30, 40, 50 };
-	//int c[arraySize] = { 0 };
-
-
-
-	//// Add vectors in parallel.
-	//cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-	//if (cudaStatus != cudaSuccess) {
-	//	fprintf(stderr, "addWithCuda failed!");
-	//	return 1;
-	//}
-
-	//printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
-	//	c[0], c[1], c[2], c[3], c[4]);
-
-	//// cudaDeviceReset must be called before exiting in order for profiling and
-	//// tracing tools such as Nsight and Visual Profiler to show complete traces.
-	//cudaStatus = cudaDeviceReset();
-	//if (cudaStatus != cudaSuccess) {
-	//	fprintf(stderr, "cudaDeviceReset failed!");
-	//	return 1;
-	//}
-	}
 
 	freeSoA(xya);
 	free(pka);
@@ -364,3 +353,13 @@ void getNewPointKCenterAssociation(long i, int ksize)
 
 //TODO quick omp thread check
 //printf("id: %d, running i: %d\n", omp_get_thread_num(), i);
+
+
+
+
+
+// Considerations:
+// - SoA helps increase load/store productivity
+// - GPU Fine grain SIMD, low latency floating point computation, Streaming throughput of large data
+// - CUDA - deducated super-threaded
+// - GPU - lightweight threads, 1000s of threads for efficiency
