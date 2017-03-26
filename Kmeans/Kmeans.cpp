@@ -18,7 +18,7 @@ int	  LIMIT;		// maximum # of iterations for K-means algorithm. e.g. 2000
 float QM;			// quality measure to stop. e.g. 17
 
 xyArrays *xya;		// SoA of the data
-xyArrays *karray;	// SoA of k-mean vertices
+xyArrays *kCenters;	// SoA of k-mean vertices
 int *pka;			// array to associate xya points with their closest cluster
 float kQuality;		// quality of current cluster configuration;
 
@@ -35,43 +35,45 @@ int main()
 	start = omp_get_wtime();
 
 	ompGo();
+
+	//TODO: cudaGo();
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 5; ksize <= 5; ksize++)
-	{
-		//TODO quick test
-		//printf("ksize: %d\n", ksize);
-		int iter = 0;
-		mallocSoA(&karray, ksize);
-		initK(ksize);
-		bool kAssociationChangedFlag = true;
-		do {
-			//printf("iter %d\n", iter + 1);
-			kAssociationChangedFlag = reCluster(ksize);
-		} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
+	//for (long ksize = 5; ksize <= 5; ksize++)
+	//{
+	//	//TODO quick test
+	//	//printf("ksize: %d\n", ksize);
+	//	//int iter = 0;
+	//	mallocSoA(&kCenters, ksize);
+	//	initK(ksize);				// K-centers = first points in data 
+	//	bool kAssociationChangedFlag = true;
+	//	do {
+	//		//printf("iter %d\n", iter + 1);
+	//		kAssociationChangedFlag = reCluster(ksize);
+	//	} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
 
 
-		//TODO: getKQuality();
-		//TODO1: for every cluster - get diameter
+	//	//TODO: getKQuality();
+	//	//TODO1: for every cluster - get diameter
 
 
 
-		//TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
+	//	//TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
 
 
-		//if (kQuality < QM)
-		if (true)
-		{
-			//quicktest
-			printf("karray:\n");
-			for (int i = 0; i < ksize; i++)
-				printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
-			//TODO: print to file
-			break;
-		}
-			
-	}
+	//	//if (kQuality < QM)
+	//	if (true)
+	//	{
+	//		//quicktest
+	//		printf("kCenters:\n");
+	//		for (int i = 0; i < ksize; i++)
+	//			printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
+	//		//TODO: print to file
+	//		break;
+	//	}
+	//		
+	//}
 	
-	freeSoA(karray);
+	//freeSoA(kCenters);
 
 
 	finish = omp_get_wtime();
@@ -146,8 +148,8 @@ void ompGo()
 		//TODO quick test
 		//printf("ksize: %d\n", ksize);
 		int iter = 0;
-		mallocSoA(&karray, ksize);
-		initK(ksize);
+		mallocSoA(&kCenters, ksize);
+		initK(ksize);				// K-centers = first points in data 
 		bool kAssociationChangedFlag = true;
 		do {
 			//printf("iter %d\n", iter + 1);
@@ -167,16 +169,16 @@ void ompGo()
 		if (true)
 		{
 			//quicktest
-			printf("karray:\n");
+			printf("kCenters:\n");
 			for (int i = 0; i < ksize; i++)
-				printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
+				printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
 			//TODO: print to file
 			break;
 		}
 
 	}
 
-	freeSoA(karray);
+	freeSoA(kCenters);
 }
 
 
@@ -250,18 +252,18 @@ bool reCluster(int ksize)
 #pragma omp parallel for
 	for (int idx = 0; idx < ksize; idx++)
 	{
-		//TODO: gotta decide where in karray to change the value....
+		//TODO: gotta decide where in kCenters to change the value....
 
 		long count = 0;
 		for (int i = idx*NO_OMP_THREADS; i < idx*NO_OMP_THREADS + NO_OMP_THREADS; i++)
 		{
-			karray->x[idx] += ompSumXArr[i];
-			karray->y[idx] += ompSumYArr[i];
+			kCenters->x[idx] += ompSumXArr[i];
+			kCenters->y[idx] += ompSumYArr[i];
 			count += ompCntPArr[i];
 		}
 		//complete center calculation
-		karray->x[idx] /= count;
-		karray->y[idx] /= count;
+		kCenters->x[idx] /= count;
+		kCenters->y[idx] /= count;
 	}
 
 	free(ompSumXArr);
@@ -307,8 +309,8 @@ void initK(long ksize)
 {
 	for (long i = 0; i < ksize; i++)
 	{
-		karray->x[i] = xya->x[i];
-		karray->y[i] = xya->y[i];
+		kCenters->x[i] = xya->x[i];
+		kCenters->y[i] = xya->y[i];
 	}
 }
 
@@ -322,8 +324,8 @@ void prepK(int* ompCntPArr, long ksize)
 		{
 			if (ompCntPArr[i]>0)
 			{
-				karray->x[idx] = 0;
-				karray->y[idx] = 0;
+				kCenters->x[idx] = 0;
+				kCenters->y[idx] = 0;
 				break;
 			}
 		}
@@ -338,7 +340,7 @@ void getNewPointKCenterAssociation(long i, int ksize)
 	float curSquareDist;
 	for (long idx = 0; idx < ksize; idx++)
 	{
-		curSquareDist = powf(xya->x[i] - karray->x[idx], 2) + powf(xya->y[i] - karray->y[idx], 2);
+		curSquareDist = powf(xya->x[i] - kCenters->x[idx], 2) + powf(xya->y[i] - kCenters->y[idx], 2);
 		if (curSquareDist < minSquareDist)
 		{
 			minSquareDist = curSquareDist;
@@ -351,7 +353,7 @@ void getNewPointKCenterAssociation(long i, int ksize)
 //TODO quick test
 //for (int i = 0; i < ksize; i++)
 //{
-//	printf("%d, %f, %f\n", i, karray->x[i], karray->y[i]);
+//	printf("%d, %f, %f\n", i, kCenters->x[i], kCenters->y[i]);
 //}
 
 //TODO quick test
