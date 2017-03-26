@@ -14,6 +14,12 @@ typedef struct _xyArrays {
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
 void readPointsFromFile();
+void ompGo();
+
+
+
+
+
 void populateSoA(FILE* fp);
 
 

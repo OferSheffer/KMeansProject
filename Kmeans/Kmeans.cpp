@@ -24,17 +24,19 @@ float kQuality;		// quality of current cluster configuration;
 
 
 //TODO: use single/double precision in the CUDA computations (half?)
+//TOOD: use float/double precition in every stage?
 
 int main()
 {
 	double start, finish;
 	readPointsFromFile();
-	initClusterAssociationArrays();
+	initClusterAssociationArrays();  // no cluster (-1)
 
 	start = omp_get_wtime();
 
+	ompGo();
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 20; ksize <= 20; ksize++)
+	for (long ksize = 5; ksize <= 5; ksize++)
 	{
 		//TODO quick test
 		//printf("ksize: %d\n", ksize);
@@ -67,7 +69,6 @@ int main()
 			break;
 		}
 			
-
 	}
 	
 	freeSoA(karray);
@@ -126,6 +127,65 @@ void readPointsFromFile()
 	fclose(fp);
 }
 
+void initClusterAssociationArrays()
+{
+	//TODO: consider renaming pka -> pointClusterAssociation
+	pka = (int*)malloc(N * sizeof(int));
+
+	for (long i = 0; i < N; i++)
+	{
+		pka[i] = -1; // no cluster
+	}
+}
+
+void ompGo()
+{
+	//for (long ksize = 2; ksize <= MAX; ksize++)
+	for (long ksize = 5; ksize <= 5; ksize++)
+	{
+		//TODO quick test
+		//printf("ksize: %d\n", ksize);
+		int iter = 0;
+		mallocSoA(&karray, ksize);
+		initK(ksize);
+		bool kAssociationChangedFlag = true;
+		do {
+			//printf("iter %d\n", iter + 1);
+			kAssociationChangedFlag = reCluster(ksize);
+		} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
+
+
+															  //TODO: getKQuality();
+															  //TODO1: for every cluster - get diameter
+
+
+
+															  //TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
+
+
+															  //if (kQuality < QM)
+		if (true)
+		{
+			//quicktest
+			printf("karray:\n");
+			for (int i = 0; i < ksize; i++)
+				printf("%d, %6.3f, %6.3f\n", i, karray->x[i], karray->y[i]);
+			//TODO: print to file
+			break;
+		}
+
+	}
+
+	freeSoA(karray);
+}
+
+
+
+
+
+
+
+
 void populateSoA(FILE* fp)
 {
 	mallocSoA(&xya, N);
@@ -171,7 +231,7 @@ bool reCluster(int ksize)
 	int*   ompCntPArr = (int*)  calloc(NO_OMP_THREADS * ksize, sizeof(int));
 
 	// step 1:
-#pragma omp parallel for num_threads(NO_OMP_THREADS) // TODO: scheduling?
+	#pragma omp parallel for num_threads(NO_OMP_THREADS) // TODO: scheduling?
 	//for (long i = 0; i < N; i++)
 	for (int i = 0; i < N; i++)
 	{
@@ -270,15 +330,7 @@ void prepK(int* ompCntPArr, long ksize)
 	}
 }
 
-void initClusterAssociationArrays()
-{
-	pka = (int*)malloc(N * sizeof(int));
 
-	for (long i = 0; i < N; i++)
-	{
-		pka[i] = -1; // no cluster
-	}
-}
 
 void getNewPointKCenterAssociation(long i, int ksize)
 {
