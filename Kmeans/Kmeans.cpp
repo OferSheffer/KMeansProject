@@ -52,17 +52,13 @@ int main()
 		innerStruct *gpuRef = (innerStruct *)malloc(nBytes);*/
 
 		//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
-		cudaError_t cudaStatus = kCentersWithCuda(kCenters, xya, N, ksize);
+		cudaError_t cudaStatus = kCentersWithCuda(kCenters, xya, N, ksize, LIMIT);
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "kCentersWithCuda failed!");
 			return 1;
 		}
 
-		//bool kAssociationChangedFlag = true;
-		//do {
-		//	//printf("iter %d\n", iter + 1);
-		//	kAssociationChangedFlag = reCluster(ksize);
-		//} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
+		
 
 
 		////TODO: getKQuality();

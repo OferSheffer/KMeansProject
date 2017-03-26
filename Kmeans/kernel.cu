@@ -11,26 +11,113 @@
 
 // arrSize indices; THREADS_PER_BLOCK * NO_BLOCKS total threads;
 // Each thread in charge of THREAD_BLOCK_SIZE contigeous indices
-#define NO_BLOCKS  5       
+     
 #define THREADS_PER_BLOCK 1000
 
-// Helper function for finding 
-cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, long N, int ksize)
+__global__ void reClusterWithCuda(const int size, bool *kaFlags)
 {
-	cudaError_t cudaStatus;
-	cudaStatus = cudaSuccess;
+
+
+
 	
-	size_t nDataBytes = sizeof(xya);
-	size_t nKCenterBytes = sizeof(kCenters);
+	//int i = threadIdx.x;
+	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+	kaFlags[i] = false;
 	
-	// allocate device memory
-	xyArrays *d_a, *d_k;
-	cudaMalloc((xyArrays**)&d_a, nDataBytes); CHKMAL_ERROR;
-	cudaMalloc((xyArrays**)&d_k, nKCenterBytes); CHKMAL_ERROR;
+	// for every point: save idx where min(distance from k[idx])
+	//#pragma omp parallel for reduction(|:kAssociationChangedFlag)
 	
-	// copy data from host to device
-	cudaMemcpy(d_a, xya, nDataBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-	initK(ksize);				// K-centers = first points in data
+	if (i<n) {
+		float tmpx = data->x[i];
+		float tmpy = data->y[i];
+		tmpx += 10.f;
+		tmpy += 20.f;
+		result->x[i] = tmpx;
+		result->y[i] = tmpy;
+	}
+
+
+
+		int prevPka = pka[i];  // save associated cluster idx
+		getNewPointKCenterAssociation(i, size);
+		if (pka[i] != prevPka)
+		{
+			kaFlag = true;
+		}
+
+
+
+	//c[i] = a[i] + b[i];
+}
+
+// Helper function for finding best centers for ksize clusters
+cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, long N, int ksize, int LIMIT)
+{
+	cudaError_t cudaStatus; 
+	const int NO_BLOCKS = N / THREADS_PER_BLOCK;
+	const int THREAD_BLOCK_SIZE = N / (THREADS_PER_BLOCK * NO_BLOCKS);
+	if (N % (THREADS_PER_BLOCK * NO_BLOCKS) != 0) {
+		fprintf(stderr, "reClusterWithCuda launch failed:\n"
+			"Array size (%d) modulo Total threads (%d) != 0.\n"
+			"Try changing number of threads.\n", N, (THREADS_PER_BLOCK * NO_BLOCKS));
+		goto Error;
+	}
+
+	// memory init block
+	{
+		cudaStatus = cudaSetDevice(0);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+			goto Error;
+		}
+
+		size_t nDataBytes = sizeof(xya);
+		size_t nKCenterBytes = sizeof(kCenters);
+
+		// allocate device memory
+		xyArrays *d_a, *d_k;		// data and k-centers xy information
+		bool *d_kaFlags;			// array to flag changes in point-to-cluster association
+
+		cudaMalloc((xyArrays**)&d_a, nDataBytes); CHKMAL_ERROR;
+		cudaMalloc((xyArrays**)&d_k, nKCenterBytes); CHKMAL_ERROR;
+		cudaMalloc((bool**)&d_kaFlags, N * sizeof(bool)); CHKMAL_ERROR;
+
+		initK(ksize);				// K-centers = first points in data (on host)
+
+									// copy data from host to device
+		cudaMemcpy(d_a, xya, nDataBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(d_k, kCenters, nKCenterBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+
+		//cudaStatus = cudaMemset((void*)dev_threadedHist, 0, THREADS_PER_BLOCK * NO_BLOCKS * histSize * sizeof(int));
+		cudaStatus = cudaMemset((void*)d_kaFlags, 0, N * sizeof(bool));
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemset failed!\n");
+			goto Error;
+		}
+	}
+	
+
+	// *** phase 1 ***
+	// Launch a kernel on the GPU with one thread for every THREAD_BLOCK_SIZE elements.
+	//threadedHistKernel << <NO_BLOCKS, THREADS_PER_BLOCK >> >(dev_threadedHist, dev_arr, THREADS_PER_BLOCK, histSize, THREAD_BLOCK_SIZE);
+	//cudaStatus = cudaGetLastError();
+	//if (cudaStatus != cudaSuccess) {
+	//	fprintf(stderr, "threadedHistKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+	//	goto Error;
+	//}
+	//cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
+	
+
+	
+	
+
+	
+	int iter = 0;
+	bool kAssociationChangedFlag = true;
+	do {
+		//printf("iter %d\n", iter + 1);
+		reClusterWithCuda(ksize, kAssociationChangedFlag);
+	} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
 
 	//TODO quick test
 	for (int i = 0; i < ksize; i++)
@@ -38,8 +125,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, long N, int ksiz
 		printf("%d, %f, %f\n", i, kCenters->x[i], kCenters->y[i]);
 	}
 
-
-	//int iter = 0;
 	//float x = input[threadID];
 	//float y = func(x);
 	//output[threadID] = y;
