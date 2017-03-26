@@ -52,7 +52,7 @@ int main()
 		innerStruct *gpuRef = (innerStruct *)malloc(nBytes);*/
 
 		//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
-		cudaError_t cudaStatus = kCentersWithCuda(kCenters, xya, N, ksize, LIMIT);
+		cudaError_t cudaStatus = kCentersWithCuda(kCenters, xya, pka, N, ksize, LIMIT);
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "kCentersWithCuda failed!");
 			return 1;
@@ -359,3 +359,8 @@ void getNewPointKCenterAssociation(long i, int ksize)
 // - GPU Fine grain SIMD, low latency floating point computation, Streaming throughput of large data
 // - CUDA - deducated super-threaded
 // - GPU - lightweight threads, 1000s of threads for efficiency
+// - CUDA reduce - decompose into multiple kernels: negligible HW overhead, low SW overhead (bandwidth-optimal)
+// - GPU performance: Choose the right metric:
+//		GFLOP / s: for compute - bound kernels
+//		Bandwidth : for memory - bound kernels
+

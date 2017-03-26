@@ -14,21 +14,22 @@
      
 #define THREADS_PER_BLOCK 1000
 
-__global__ void reClusterWithCuda(const int size, bool *kaFlags)
+__global__ void reClusterWithCuda(xyArrays* d_kCenters, xyArrays* d_xya, const int size, bool *kaFlags)
 {
+	extern __shared__ bool* d_kaFlags; // array to flag changes in point-to-cluster association
 
-
-
-	
-	//int i = threadIdx.x;
 	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-	kaFlags[i] = false;
+	d_kaFlags[i] = false;
 	
 	// for every point: save idx where min(distance from k[idx])
 	//#pragma omp parallel for reduction(|:kAssociationChangedFlag)
 	
-	if (i<n) {
-		float tmpx = data->x[i];
+	if (i < size) {
+		int prevPka = d_kCenters[i]; // save associated cluster idx
+		for (int idx = 0; idx < ksize; idx++)
+		{
+
+		} tmpx = data->x[i];
 		float tmpy = data->y[i];
 		tmpx += 10.f;
 		tmpy += 20.f;
@@ -76,11 +77,14 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, long N, int ksiz
 
 		// allocate device memory
 		xyArrays *d_a, *d_k;		// data and k-centers xy information
-		bool *d_kaFlags;			// array to flag changes in point-to-cluster association
+		int* d_pka;
+		
+									//bool *d_kaFlags;			// array to flag changes in point-to-cluster association
 
 		cudaMalloc((xyArrays**)&d_a, nDataBytes); CHKMAL_ERROR;
 		cudaMalloc((xyArrays**)&d_k, nKCenterBytes); CHKMAL_ERROR;
-		cudaMalloc((bool**)&d_kaFlags, N * sizeof(bool)); CHKMAL_ERROR;
+		cudaMalloc((int**)&d_pka, N * sizeof(int)); CHKMAL_ERROR;
+		//cudaMalloc((bool**)&d_kaFlags, N * sizeof(bool)); CHKMAL_ERROR;
 
 		initK(ksize);				// K-centers = first points in data (on host)
 
@@ -98,14 +102,15 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, long N, int ksiz
 	
 
 	// *** phase 1 ***
-	// Launch a kernel on the GPU with one thread for every THREAD_BLOCK_SIZE elements.
-	//threadedHistKernel << <NO_BLOCKS, THREADS_PER_BLOCK >> >(dev_threadedHist, dev_arr, THREADS_PER_BLOCK, histSize, THREAD_BLOCK_SIZE);
-	//cudaStatus = cudaGetLastError();
-	//if (cudaStatus != cudaSuccess) {
-	//	fprintf(stderr, "threadedHistKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-	//	goto Error;
-	//}
-	//cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
+	// One thread for every THREAD_BLOCK_SIZE elements.
+
+	reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK >> >(d_k, d_a, d_kaFlags, THREADS_PER_BLOCK, THREAD_BLOCK_SIZE);
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "threadedHistKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto Error;
+	}
+	cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 	
 
 	

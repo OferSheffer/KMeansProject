@@ -1,3 +1,4 @@
 Robert I. Pitts - fileio
 Professional CUDA C Programming - John Cheng
 - SoA vs AoS
+Optimizing Parallel Reduction in CUDA - Mark Harris
