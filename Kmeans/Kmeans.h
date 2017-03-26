@@ -11,7 +11,7 @@ typedef struct _xyArrays {
 	float *y;
 } xyArrays;
 
-cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, long N, int ksize, int LIMIT);
+cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, int* pka, long N, int ksize, int LIMIT);
 //cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
 void readPointsFromFile();

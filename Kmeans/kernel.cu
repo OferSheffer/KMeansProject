@@ -14,47 +14,39 @@
      
 #define THREADS_PER_BLOCK 1000
 
-__global__ void reClusterWithCuda(xyArrays* d_kCenters, xyArrays* d_xya, const int size, bool *kaFlags)
+__global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, const int size, bool *kaFlags)
 {
 	extern __shared__ bool* d_kaFlags; // array to flag changes in point-to-cluster association
 
 	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	d_kaFlags[i] = false;
-	
+
+
 	// for every point: save idx where min(distance from k[idx])
-	//#pragma omp parallel for reduction(|:kAssociationChangedFlag)
+	// TODO: reduction for kAssociationChangedFlag
 	
 	if (i < size) {
-		int prevPka = d_kCenters[i]; // save associated cluster idx
-		for (int idx = 0; idx < size; idx++)
+		int prevPka = pka[i]; // save associated cluster idx
+		float minSquareDist = 0x7f800000;  //CUDA infinity   (0x7ff0000000000000 = double infinity)
+		float curSquareDist;
+		for (long idx = 0; idx < ksize; idx++) //TODO: geet ksize
 		{
-
-		} 
-		
-		tmpx = data->x[i];
-		float tmpy = data->y[i];
-		tmpx += 10.f;
-		tmpy += 20.f;
-		result->x[i] = tmpx;
-		result->y[i] = tmpy;
-	}
-
-
-
-		int prevPka = pka[i];  // save associated cluster idx
-		getNewPointKCenterAssociation(i, size);
+			curSquareDist = powf(d_xya->x[i] - d_kCenters->x[idx], 2) + powf(d_xya->y[i] - d_kCenters->y[idx], 2);
+			if (curSquareDist < minSquareDist)
+			{
+				minSquareDist = curSquareDist;
+				pka[i] = idx;
+			}
+		}
 		if (pka[i] != prevPka)
 		{
-			kaFlag = true;
+			d_kaFlags[i] = true;
 		}
 
-
-
-	//c[i] = a[i] + b[i];
 }
 
 // Helper function for finding best centers for ksize clusters
-cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, long N, int ksize, int LIMIT)
+cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, int* pka, long N, int ksize, int LIMIT)
 {
 	cudaError_t cudaStatus; 
 	const int NO_BLOCKS = N / THREADS_PER_BLOCK;
@@ -79,7 +71,7 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, long N, int ksiz
 
 		// allocate device memory
 		xyArrays *d_a, *d_k;		// data and k-centers xy information
-		int* d_pka;
+		int* d_pka;					// array to associate xya points with their closest cluster
 		
 									//bool *d_kaFlags;			// array to flag changes in point-to-cluster association
 
@@ -93,20 +85,21 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, long N, int ksiz
 									// copy data from host to device
 		cudaMemcpy(d_a, xya, nDataBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		cudaMemcpy(d_k, kCenters, nKCenterBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(d_pka, pka, N*sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
 		//cudaStatus = cudaMemset((void*)dev_threadedHist, 0, THREADS_PER_BLOCK * NO_BLOCKS * histSize * sizeof(int));
-		cudaStatus = cudaMemset((void*)d_kaFlags, 0, N * sizeof(bool));
+		/*cudaStatus = cudaMemset((void*)d_kaFlags, 0, N * sizeof(bool));
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "cudaMemset failed!\n");
 			goto Error;
-		}
+		}*/
 	}
 	
 
 	// *** phase 1 ***
 	// One thread for every THREAD_BLOCK_SIZE elements.
 
-	reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK >> >(d_k, d_a, d_kaFlags, THREADS_PER_BLOCK, THREAD_BLOCK_SIZE);
+	reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK >> >(d_k, ksize, d_a, d_pka, N, d_kaFlags, THREADS_PER_BLOCK, THREAD_BLOCK_SIZE);
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "threadedHistKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
