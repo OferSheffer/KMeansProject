@@ -47,9 +47,6 @@ int main()
 
 		// allocate host memory
 		size_t nBytes = sizeof(xya);
-		/*innerStruct *h_A = (innerStruct *)malloc(nBytes);
-		innerStruct *hostRef = (innerStruct *)malloc(nBytes);
-		innerStruct *gpuRef = (innerStruct *)malloc(nBytes);*/
 
 		//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
 		cudaError_t cudaStatus = kCentersWithCuda(kCenters, xya, pka, N, ksize, LIMIT);

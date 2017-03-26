@@ -26,10 +26,12 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, xyArrays* d_xya, const i
 	
 	if (i < size) {
 		int prevPka = d_kCenters[i]; // save associated cluster idx
-		for (int idx = 0; idx < ksize; idx++)
+		for (int idx = 0; idx < size; idx++)
 		{
 
-		} tmpx = data->x[i];
+		} 
+		
+		tmpx = data->x[i];
 		float tmpy = data->y[i];
 		tmpx += 10.f;
 		tmpy += 20.f;
