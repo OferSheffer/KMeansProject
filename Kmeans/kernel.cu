@@ -16,7 +16,8 @@
 #define THREADS_PER_BLOCK 1000
 
 
-__global__ void reduce1(int *g_idata, int *g_odata) {
+/*
+__global__ void reduce(int *g_idata, int *g_odata) {
 	extern __shared__ int sdata[];
 	// each thread loads one element from global to shared mem
 	unsigned int tid = threadIdx.x;
@@ -43,9 +44,9 @@ __global__ void reduce1(int *g_idata, int *g_odata) {
 	// write result for this block to global mem
 	if (tid == 0) g_odata[blockIdx.x] = sdata[0];
 }
+*/
 
-
-__global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, const int size, bool d_kaFlag)
+__global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, bool* d_kaFlags, const int size)
 {
 	extern __shared__ bool* d_kaFlags; // array to flag changes in point-to-cluster association
 
@@ -92,7 +93,7 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, int* pka, long N
 {
 	cudaError_t cudaStatus; 
 	const int NO_BLOCKS = N / THREADS_PER_BLOCK;
-	const int THREAD_BLOCK_SIZE = N / (THREADS_PER_BLOCK * NO_BLOCKS);
+	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 	if (N % (THREADS_PER_BLOCK * NO_BLOCKS) != 0) {
 		fprintf(stderr, "reClusterWithCuda launch failed:\n"
 			"Array size (%d) modulo Total threads (%d) != 0.\n"
@@ -113,10 +114,11 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, int* pka, long N
 
 		// allocate device memory
 		xyArrays *d_xya, *d_kCenters;		// data and k-centers xy information
-		int* d_pka;					// array to associate xya points with their closest cluster
+		int* d_pka;							// array to associate xya points with their closest cluster
+		bool *d_kaFlags;					// array to flags changes in point-to-cluster association
 		bool d_kaFlag = false;
 		
-									//bool *d_kaFlags;			// array to flag changes in point-to-cluster association
+									
 
 		cudaMalloc((xyArrays**)&d_xya, nDataBytes); CHKMAL_ERROR;
 		cudaMalloc((xyArrays**)&d_kCenters, nKCenterBytes); CHKMAL_ERROR;
@@ -140,11 +142,14 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, int* pka, long N
 	
 
 	// *** phase 1 ***
-	// One thread for every THREAD_BLOCK_SIZE elements.
+	// One thread for every THREAD_BLOCK_SIZE elements
 	int iter = 0;
 	
+	size_t SharedMemBytes = 64; // 64 bytes of shared memory
+	KernelFunc << <DimGrid, DimBlock, SharedMemBytes >> >
+
 	do {
-		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK >> > (d_kCenters, ksize, d_xya, d_pka, N, d_kaFlag); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
+		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "threadedHistKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
