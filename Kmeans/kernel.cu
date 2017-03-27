@@ -45,7 +45,6 @@ __global__ void reduce1(int *g_idata, int *g_odata) {
 }
 
 
-
 __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, const int size, bool d_kaFlag)
 {
 	extern __shared__ bool* d_kaFlags; // array to flag changes in point-to-cluster association
@@ -53,7 +52,8 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 	unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	// for every point: save idx where min(distance from k[idx]
 	
-	if (tid < size) {
+	if (tid < size)
+	{
 		d_kaFlags[tid] = false; // no changes yet
 		int prevPka = pka[tid]; // save associated cluster idx
 		float minSquareDist = INFINITY;
@@ -74,14 +74,17 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 		// reduction for d_kaFlag
 		__syncthreads();
 		// do reduction in shared mem
-		for (unsigned int s = 1; s < blockDim.x; s *= 2) {
-			if (tid % (2 * s) == 0) {
+		for (unsigned int s = 1; s < blockDim.x; s *= 2)
+		{
+			if (tid % (2 * s) == 0)
+			{
 				d_kaFlags[tid] += d_kaFlags[tid + s];
 			}
 			__syncthreads();
 		}
 		// write result for this block to global mem
 		if (tid == 0) d_kaFlag[blockIdx.x] = d_kaFlags[0];
+	}
 }
 
 // Helper function for finding best centers for ksize clusters
@@ -123,8 +126,8 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, int* pka, long N
 		initK(ksize);				// K-centers = first points in data (on host)
 
 									// copy data from host to device
-		cudaMemcpy(d_a, xya, nDataBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-		cudaMemcpy(d_k, kCenters, nKCenterBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(d_xya, xya, nDataBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(d_kCenters, kCenters, nKCenterBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		cudaMemcpy(d_pka, pka, N*sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
 		//cudaStatus = cudaMemset((void*)dev_threadedHist, 0, THREADS_PER_BLOCK * NO_BLOCKS * histSize * sizeof(int));
