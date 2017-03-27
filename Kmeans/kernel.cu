@@ -1,10 +1,10 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
-
+#include <math.h>
 #include <stdio.h>
 #include "Kmeans.h"
-#include <math.h>
+
 
 #define CHKMAL_ERROR	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMalloc failed!"); goto Error; }
 #define CHKMEMCPY_ERROR if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMemcpy failed!"); goto Error; }
@@ -76,12 +76,12 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 		// do reduction in shared mem
 		for (unsigned int s = 1; s < blockDim.x; s *= 2) {
 			if (tid % (2 * s) == 0) {
-				d_kaFlags[tid] += sdata[tid + s];
+				d_kaFlags[tid] += d_kaFlags[tid + s];
 			}
 			__syncthreads();
 		}
 		// write result for this block to global mem
-		if (tid == 0) g_odata[blockIdx.x] = sdata[0];
+		if (tid == 0) d_kaFlag[blockIdx.x] = d_kaFlags[0];
 }
 
 // Helper function for finding best centers for ksize clusters
