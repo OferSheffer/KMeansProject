@@ -1,8 +1,10 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
+#include <omp.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "Kmeans.h"
 
 
@@ -93,7 +95,7 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 		}
 		if (pka[tid] != prevPka)
 		{
-			d_kaFlags[tid] = true;
+			dShared_kaFlags[tid] = true;
 		}
 		// reduction for d_kaFlag
 		__syncthreads();
@@ -122,7 +124,7 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 		}
 		
 		// write result for this block to global mem
-		if (ltid == 0) d_kaFlags[ltid] = dShared_kaFlags[0];
+		if (tid == 0) d_kaFlags[blockIdx.x] = dShared_kaFlags[0];
 	}
 }
 
@@ -153,27 +155,43 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		size_t nDataBytes = N * sizeof(*xya);
 		size_t nKCenterBytes = ksize * sizeof(*kCenters);
 
-		printf("sizeof(xya): %d", nDataBytes);
-
 		// allocate host-side helpers
-		// bool h_kaFlag;
+		bool	 *h_kaFlags;
+		h_kaFlags = (bool*)malloc(NO_BLOCKS * sizeof(bool));
 
 		// allocate device memory
 		xyArrays *d_xya,
 				 *d_kCenters;				// data and k-centers xy information
 		int		 *d_pka;					// array to associate xya points with their closest cluster
-		bool     *d_kaFlags;				// array to flags changes in point-to-cluster association							
+		bool     *d_kaFlags;				// array to flags changes in point-to-cluster association	
+		xyArrays h_xya, h_kCenters;
 
-		cudaMalloc((xyArrays**)&d_xya, nDataBytes); CHKMAL_ERROR;
-		cudaMalloc((xyArrays**)&d_kCenters, nKCenterBytes); CHKMAL_ERROR;
+		cudaMalloc(&d_xya,sizeof(xyArrays));
+		cudaMalloc(&d_kCenters,sizeof(xyArrays));
+
+		cudaMalloc(&(h_xya.x), nDataBytes / 2); CHKMAL_ERROR;
+		cudaMalloc(&(h_xya.y), nDataBytes / 2); CHKMAL_ERROR;
+		cudaMemcpy(d_xya, &h_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+
+
+		cudaMalloc(&(h_kCenters.x), nKCenterBytes / 2); CHKMAL_ERROR;
+		cudaMalloc(&(h_kCenters.y), nKCenterBytes / 2); CHKMAL_ERROR;
+		cudaMemcpy(d_kCenters, &h_kCenters, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+
+
+		//cudaMalloc((xyArrays**)&d_xya, nDataBytes); CHKMAL_ERROR;
+		//cudaMalloc((xyArrays**)&d_kCenters, nKCenterBytes); CHKMAL_ERROR;
 		cudaMalloc((int**)&d_pka, N * sizeof(int)); CHKMAL_ERROR;
 		cudaMalloc((bool**)&d_kaFlags, N * sizeof(bool)); CHKMAL_ERROR;
 
 		// copy data from host to device
-		cudaMemcpy(d_xya, xya, nDataBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-		cudaMemcpy(d_kCenters, kCenters, nKCenterBytes, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(d_xya->x, xya->x, nDataBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(d_xya->y, xya->y, nDataBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(d_kCenters->x, kCenters->x, nKCenterBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(d_kCenters->y, kCenters->y, nKCenterBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		cudaMemcpy(d_pka, pka, N*sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
+		
 		cudaStatus = cudaMemset((void*)d_kaFlags, 0, N * sizeof(bool));
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "cudaMemset failed!\n");
@@ -184,6 +202,9 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	// *** phase 1 ***
 	int iter = 0;
 	size_t SharedMemBytes = N * sizeof(bool); // shared memory for flag work
+	bool flag;
+
+	printf("yes!\n");
 	do {
 		//KernelFunc << <DimGrid, DimBlock, SharedMemBytes >> >
 		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
@@ -193,10 +214,18 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 			goto Error;
 		}
 		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
-	
-		//cudaStatus = cudaMemcpy((void**)&h_kaFlag, *d_kaFlags, sizeof(bool), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-		
-	} while (++iter < LIMIT && d_kaFlags[0]);  // association changes: need to re-cluster
+
+
+		cudaStatus = cudaMemcpy(h_kaFlags, d_kaFlags, NO_BLOCKS * sizeof(bool), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
+		printf("iteration\n");
+		flag = false;
+		//#pragma omp parallel for reduction(|:flag)
+		for (int i = 0; i < NO_BLOCKS; i++)
+		{
+			//printf("%d, %d\n", omp_get_thread_num(), h_kaFlags[i]);
+			flag = h_kaFlags[i];
+		}
+	} while (++iter < LIMIT && flag);  // association changes: need to re-cluster
 
 
 
@@ -205,6 +234,8 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	{
 		printf("%d, %f, %f\n", i, kCenters->x[i], kCenters->y[i]);
 	}
+
+	free(h_kaFlags);
 
 	Error:
 		cudaFree(d_xya);
