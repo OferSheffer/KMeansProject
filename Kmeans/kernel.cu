@@ -17,60 +17,6 @@
 
 #define THREADS_PER_BLOCK 1024
 
-/*
-__device__ void reduce(int *g_idata, int *g_odata) {
-extern __shared__ int sdata[];
-// each thread loads one element from global to shared mem
-unsigned int tid = threadIdx.x;
-unsigned int i = blockIdx.x*(blockDim.x * 2) + threadIdx.x;
-sdata[tid] = g_idata[i] + g_idata[i + blockDim.x];
-__syncthreads();
-// do reduction in shared mem
-for (unsigned int s = blockDim.x / 2; s>32; s >>= 1)
-{
-if (tid < s)
-sdata[tid] += sdata[tid + s];
-__syncthreads();
-}
-if (tid < 32) //unroll warp
-{
-sdata[tid] += sdata[tid + 32];
-sdata[tid] += sdata[tid + 16];
-sdata[tid] += sdata[tid + 8];
-sdata[tid] += sdata[tid + 4];
-sdata[tid] += sdata[tid + 2];
-sdata[tid] += sdata[tid + 1];
-}
-
-// write result for this block to global mem
-if (tid == 0) g_odata[blockIdx.x] = sdata[0];
-} */
-
-/*
-__device__ void reduce(bool *d_kaFlags) {
-// each thread loads one element from global to shared mem
-unsigned int tid = threadIdx.x;
-unsigned int i = blockIdx.x*(blockDim.x * 2) + threadIdx.x;
-d_kaFlags[tid] = d_kaFlags[i] | d_kaFlags[i + blockDim.x];
-__syncthreads();
-// do reduction in shared mem
-for (unsigned int s = blockDim.x / 2; s>32; s >>= 1)
-{
-if (tid < s)
-d_kaFlags[tid] |= d_kaFlags[tid + s];
-__syncthreads();
-}
-if (tid < 32) //unroll warp
-{
-d_kaFlags[tid] += d_kaFlags[tid + 32];
-d_kaFlags[tid] += d_kaFlags[tid + 16];
-d_kaFlags[tid] += d_kaFlags[tid + 8];
-d_kaFlags[tid] += d_kaFlags[tid + 4];
-d_kaFlags[tid] += d_kaFlags[tid + 2];
-d_kaFlags[tid] += d_kaFlags[tid + 1];
-}
-} */
-
 __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, bool* d_kaFlags, const int size)
 {
 	__shared__ bool dShared_kaFlags[1024]; // array to flag changes in point-to-cluster association
