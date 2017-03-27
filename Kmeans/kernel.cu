@@ -225,17 +225,19 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 
 		cudaStatus = cudaMemcpy(h_kaFlags, d_kaFlags, NO_BLOCKS * sizeof(bool), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-		printf("iteration\n");
+		printf("iteration %d\n", iter);
 		flag = false;
 		//#pragma omp parallel for reduction(|:flag)
 		for (int i = 0; i < NO_BLOCKS; i++)
 		{
-			//printf("%d, %d\n", omp_get_thread_num(), h_kaFlags[i]);
-			flag = h_kaFlags[i];
+			printf("%d, %d\n", omp_get_thread_num(), h_kaFlags[i]);
+			flag |= h_kaFlags[i];
 		}
 	} while (++iter < LIMIT && flag);  // association changes: need to re-cluster
 
 
+	cudaMemcpy(kCenters->x, h_kCenters.x, nKCenterBytes/2, cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
+	cudaMemcpy(kCenters->y, h_kCenters.y, nKCenterBytes/2, cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
 	//TODO quick test
 	for (int i = 0; i < ksize; i++)
