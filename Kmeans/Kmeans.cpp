@@ -256,7 +256,18 @@ bool reCluster(int ksize)
 	return kAssociationChangedFlag;
 }
 
-
+bool ompReduceCudaFlags(bool* flags, int size)
+{
+	bool flag = false;
+#pragma omp parallel for reduction(|:flag)
+	for (int i = 0; i < size; i++)
+	{
+		printf("%d, %d\n", omp_get_thread_num(), flags[i]);
+		flag |= flags[i];
+	}
+	printf("flag: %d!\n", flag);
+	return flag;
+}
 
 
 

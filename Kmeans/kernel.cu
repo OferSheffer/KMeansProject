@@ -157,8 +157,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	//}
 
 	// *** phase 1 ***
-
-	printf("yes!\n");
 	do {
 		//KernelFunc << <DimGrid, DimBlock, SharedMemBytes >> >
 		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
@@ -172,13 +170,9 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 		cudaStatus = cudaMemcpy(h_kaFlags, d_kaFlags, NO_BLOCKS * sizeof(bool), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 		printf("iteration %d\n", iter);
-		flag = false;
-		//#pragma omp parallel for reduction(|:flag)
-		for (int i = 0; i < NO_BLOCKS; i++)
-		{
-			printf("%d, %d\n", omp_get_thread_num(), h_kaFlags[i]);
-			flag |= h_kaFlags[i];
-		}
+		
+		flag = ompReduceCudaFlags(h_kaFlags, NO_BLOCKS);
+
 	} while (++iter < LIMIT && flag);  // association changes: need to re-cluster
 
 
@@ -201,97 +195,3 @@ Error:
 
 	return cudaStatus;
 }
-
-
-
-
-/**************/
-//old cuda code
-/*
-__global__ void addKernel(int *c, const int *a, const int *b)
-{
-int i = threadIdx.x;
-c[i] = a[i] + b[i];
-}
-
-// Helper function for using CUDA to add vectors in parallel.
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
-{
-int *dev_a = 0;
-int *dev_b = 0;
-int *dev_c = 0;
-cudaError_t cudaStatus;
-
-// Choose which GPU to run on, change this on a multi-GPU system.
-cudaStatus = cudaSetDevice(0);
-if (cudaStatus != cudaSuccess) {
-fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-goto Error;
-}
-
-// Allocate GPU buffers for three vectors (two input, one output)    .
-cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
-if (cudaStatus != cudaSuccess) {
-fprintf(stderr, "cudaMalloc failed!");
-goto Error;
-}
-
-cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
-if (cudaStatus != cudaSuccess) {
-fprintf(stderr, "cudaMalloc failed!");
-goto Error;
-}
-
-cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
-if (cudaStatus != cudaSuccess) {
-fprintf(stderr, "cudaMalloc failed!");
-goto Error;
-}
-
-// Copy input vectors from host memory to GPU buffers.
-cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
-if (cudaStatus != cudaSuccess) {
-fprintf(stderr, "cudaMemcpy failed!");
-goto Error;
-}
-
-cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
-if (cudaStatus != cudaSuccess) {
-fprintf(stderr, "cudaMemcpy failed!");
-goto Error;
-}
-
-// Launch a kernel on the GPU with one thread for each element.
-addKernel << <1, size >> >(dev_c, dev_a, dev_b);
-
-// Check for any errors launching the kernel
-cudaStatus = cudaGetLastError();
-if (cudaStatus != cudaSuccess) {
-fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-goto Error;
-}
-
-// cudaDeviceSynchronize waits for the kernel to finish, and returns
-// any errors encountered during the launch.
-cudaStatus = cudaDeviceSynchronize();
-if (cudaStatus != cudaSuccess) {
-fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-goto Error;
-}
-
-// Copy output vector from GPU buffer to host memory.
-cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
-if (cudaStatus != cudaSuccess) {
-fprintf(stderr, "cudaMemcpy failed!");
-goto Error;
-}
-
-Error:
-cudaFree(dev_c);
-cudaFree(dev_a);
-cudaFree(dev_b);
-
-return cudaStatus;
-}
-
-*/

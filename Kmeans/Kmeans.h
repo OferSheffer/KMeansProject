@@ -18,7 +18,7 @@ void readPointsFromFile();
 void ompGo();
 
 
-
+bool ompReduceCudaFlags(bool* flags, int size);
 
 
 void populateSoA(FILE* fp);
