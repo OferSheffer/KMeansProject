@@ -150,11 +150,13 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		}
 
 		// size helpers
-		size_t nDataBytes = sizeof(xya);
-		size_t nKCenterBytes = sizeof(kCenters);
+		size_t nDataBytes = N * sizeof(*xya);
+		size_t nKCenterBytes = ksize * sizeof(*kCenters);
+
+		printf("sizeof(xya): %d", nDataBytes);
 
 		// allocate host-side helpers
-		bool h_kaFlag;
+		// bool h_kaFlag;
 
 		// allocate device memory
 		xyArrays *d_xya,
