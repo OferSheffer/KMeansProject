@@ -73,15 +73,15 @@ __device__ void reduce(bool *d_kaFlags) {
 
 __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, bool* d_kaFlags, const int size)
 {
-	__shared__ bool* dShared_kaFlags; // array to flag changes in point-to-cluster association
+	__shared__ bool dShared_kaFlags[1024]; // array to flag changes in point-to-cluster association
 
 	unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
+        int prevPka;
 	// for every point: save idx where min(distance from k[idx]	
 	if (tid < size)
 	{
 		dShared_kaFlags[tid] = false; // no changes yet
-		int prevPka = pka[tid]; // save associated cluster idx
+		prevPka = pka[tid]; // save associated cluster idx
 		float minSquareDist = INFINITY;
 		float curSquareDist;
 		for (int idx = 0; idx < ksize; idx++)
@@ -103,9 +103,13 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 		//reduce(dShared_kaFlags);
 		// each thread loads one element from global to shared mem
 		unsigned int ltid = threadIdx.x;
+#if 0
 		unsigned int i = blockIdx.x*(blockDim.x * 2) + threadIdx.x;
-		dShared_kaFlags[ltid] = dShared_kaFlags[i] | dShared_kaFlags[i + blockDim.x];
+                blockIdx.x * blockDim.x + threadIdx.x; 
+
+		if ( i < size) dShared_kaFlags[ltid] = dShared_kaFlags[i] | dShared_kaFlags[i + blockDim.x];
 		__syncthreads();
+#endif
 		// do reduction in shared mem
 		for (unsigned int s = blockDim.x / 2; s>32; s >>= 1)
 		{
@@ -142,9 +146,17 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		goto Error;
 	} */
 	initK(ksize);				// K-centers = first points in data (on host)
+	int iter = 0;
+	size_t SharedMemBytes = N * sizeof(bool); // shared memory for flag work
+	bool flag;
 
 	// memory init block
 	//{
+		size_t nDataBytes = N * sizeof(*xya);
+		size_t nKCenterBytes = ksize * sizeof(*kCenters);
+		bool	 *h_kaFlags;
+		int	 *d_pka;					// array to associate xya points with their closest cluster
+		bool     *d_kaFlags;				// array to flags changes in point-to-cluster association	
 		cudaStatus = cudaSetDevice(0);
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
@@ -152,43 +164,42 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		}
 
 		// size helpers
-		size_t nDataBytes = N * sizeof(*xya);
-		size_t nKCenterBytes = ksize * sizeof(*kCenters);
 
 		// allocate host-side helpers
-		bool	 *h_kaFlags;
 		h_kaFlags = (bool*)malloc(NO_BLOCKS * sizeof(bool));
 
 		// allocate device memory
 		xyArrays *d_xya,
 				 *d_kCenters;				// data and k-centers xy information
-		int		 *d_pka;					// array to associate xya points with their closest cluster
-		bool     *d_kaFlags;				// array to flags changes in point-to-cluster association	
 		xyArrays h_xya, h_kCenters;
 
+               printf("A");
 		cudaMalloc(&d_xya,sizeof(xyArrays));
-		cudaMalloc(&d_kCenters,sizeof(xyArrays));
 
 		cudaMalloc(&(h_xya.x), nDataBytes / 2); CHKMAL_ERROR;
 		cudaMalloc(&(h_xya.y), nDataBytes / 2); CHKMAL_ERROR;
-		cudaMemcpy(d_xya, &h_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(h_xya.x, xya->x, nDataBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(h_xya.y, xya->y, nDataBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
 
+               printf("A");
+		cudaMalloc(&d_kCenters,sizeof(xyArrays));
 		cudaMalloc(&(h_kCenters.x), nKCenterBytes / 2); CHKMAL_ERROR;
 		cudaMalloc(&(h_kCenters.y), nKCenterBytes / 2); CHKMAL_ERROR;
+		cudaMemcpy(h_kCenters.x, kCenters->x, nKCenterBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(h_kCenters.y, kCenters->y, nKCenterBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		cudaMemcpy(d_xya, &h_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		cudaMemcpy(d_kCenters, &h_kCenters, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+               printf("A");
 
 
 		//cudaMalloc((xyArrays**)&d_xya, nDataBytes); CHKMAL_ERROR;
 		//cudaMalloc((xyArrays**)&d_kCenters, nKCenterBytes); CHKMAL_ERROR;
-		cudaMalloc((int**)&d_pka, N * sizeof(int)); CHKMAL_ERROR;
-		cudaMalloc((bool**)&d_kaFlags, N * sizeof(bool)); CHKMAL_ERROR;
+		cudaMalloc(&d_pka, N * sizeof(int)); CHKMAL_ERROR;
+		cudaMalloc(&d_kaFlags, N * sizeof(bool)); CHKMAL_ERROR;
+               printf("B");
 
 		// copy data from host to device
-		cudaMemcpy(d_xya->x, xya->x, nDataBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-		cudaMemcpy(d_xya->y, xya->y, nDataBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-		cudaMemcpy(d_kCenters->x, kCenters->x, nKCenterBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-		cudaMemcpy(d_kCenters->y, kCenters->y, nKCenterBytes/2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		cudaMemcpy(d_pka, pka, N*sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
 		
@@ -200,9 +211,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	//}
 
 	// *** phase 1 ***
-	int iter = 0;
-	size_t SharedMemBytes = N * sizeof(bool); // shared memory for flag work
-	bool flag;
 
 	printf("yes!\n");
 	do {
