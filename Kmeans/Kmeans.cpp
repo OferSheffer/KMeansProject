@@ -38,7 +38,7 @@ int main()
 
 	//TODO: cudaGo();
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 2; ksize <= 2; ksize++)
+	for (long ksize = 5; ksize <= 5; ksize++)
 	{
 		//TODO quick test
 		printf("ksize: %d\n", ksize);
