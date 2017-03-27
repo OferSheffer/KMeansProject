@@ -49,7 +49,7 @@ int main()
 		size_t nBytes = sizeof(xya);
 
 		//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
-		cudaError_t cudaStatus = kCentersWithCuda(kCenters, xya, pka, N, ksize, LIMIT);
+		cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "kCentersWithCuda failed!");
 			return 1;
