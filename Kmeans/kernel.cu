@@ -13,7 +13,7 @@
 // arrSize indices; THREADS_PER_BLOCK * NO_BLOCKS total threads;
 // Each thread in charge of THREAD_BLOCK_SIZE contigeous indices
      
-#define THREADS_PER_BLOCK 1000
+#define THREADS_PER_BLOCK 256
 
 
 /*
@@ -92,7 +92,7 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 cudaError_t kCentersWithCuda(xyArrays* kCenters, xyArrays* xya, int* pka, long N, int ksize, int LIMIT)
 {
 	cudaError_t cudaStatus; 
-	const int NO_BLOCKS = N / THREADS_PER_BLOCK;
+	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0)? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 	if (N % (THREADS_PER_BLOCK * NO_BLOCKS) != 0) {
 		fprintf(stderr, "reClusterWithCuda launch failed:\n"
