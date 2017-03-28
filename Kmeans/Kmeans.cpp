@@ -457,51 +457,6 @@ void getNewPointKCenterAssociation(long i, int ksize)
 	}
 }
 
-
-void loopBcast(long size) 
-{
-	// sometime fails on my laptop
-	int res, buf_size=64;
-	//for (int i = 0; i < size/buf_size; i++)
-	for (int i = 0; i < 8; i++)
-	{
-		res = MPI_Bcast(&(xya->x[buf_size * i + 0]), buf_size, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
-		MPI_Barrier(MPI_COMM_WORLD);
-		res = MPI_Bcast(&(xya->y[buf_size * i + 0]), buf_size, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
-		MPI_Barrier(MPI_COMM_WORLD);
-	}
-}
-	
-void serialSendRecv(long size)
-{
-	int tmp=1, buf_size = 10, blocks = size/buf_size;
-	printf("size: %d, blocks: %d", size, blocks);
-	if (myid == MASTER)
-	{
-		// send data to everyone
-		for (int i = 1; i < numprocs; i++)
-		{
-			for (int j = 0; j < blocks; j++)
-			{
-				MPI_Send(&(xya->x[j*buf_size + 0]), buf_size, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
-				MPI_Recv(&tmp, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUSES_IGNORE); //ACK
-				MPI_Send(&(xya->y[j*buf_size + 0]), buf_size, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
-				MPI_Recv(&tmp, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUSES_IGNORE); //ACK
-			}
-			
-		}
-	} else {
-		// receive the data from MASTER
-		for (int j = 0; j < blocks; j++)
-		{
-			MPI_Recv(&(xya->x[j*buf_size + 0]), buf_size, MPI_FLOAT, MASTER, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			MPI_Send(&tmp, 1, MPI_INT, MASTER, 0, MPI_COMM_WORLD); //ACK
-			MPI_Recv(&(xya->y[j*buf_size + 0]), buf_size, MPI_FLOAT, MASTER, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			MPI_Send(&tmp, 1, MPI_INT, MASTER, 0, MPI_COMM_WORLD); //ACK
-		}
-	}
-}
-
 //TODO quick test
 //for (int i = 0; i < ksize; i++)
 //{
