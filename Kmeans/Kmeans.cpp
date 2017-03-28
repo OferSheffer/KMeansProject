@@ -35,10 +35,10 @@ int main()
 	start = omp_get_wtime();
 
 	//ompGo();
-
+	
 	//TODO: cudaGo();
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 5; ksize <= 5; ksize++)
+	for (long ksize = 2; ksize <= 2; ksize++)
 	{
 		//TODO quick test
 		printf("ksize: %d\n", ksize);
@@ -56,10 +56,9 @@ int main()
 		}
 
 		
+		//TODO: getKQuality();
+		//TODO1: for every cluster - get diameter
 
-
-		////TODO: getKQuality();
-		////TODO1: for every cluster - get diameter
 
 
 
@@ -125,7 +124,7 @@ void initClusterAssociationArrays()
 void ompGo()
 {
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 5; ksize <= 5; ksize++)
+	for (long ksize = 2; ksize <= 2; ksize++)
 	{
 		//TODO quick test
 		//printf("ksize: %d\n", ksize);
@@ -195,7 +194,7 @@ bool reCluster(int ksize)
 		}
 	}
 
-	//reCenter
+	// reCenter
 	// re-calculate cluster centers:
 	// *****************************
 	/*
@@ -262,15 +261,74 @@ bool ompReduceCudaFlags(bool* flags, int size)
 #pragma omp parallel for reduction(|:flag)
 	for (int i = 0; i < size; i++)
 	{
-		printf("%d, %d\n", omp_get_thread_num(), flags[i]);
+		//TODO: quicktest
+		//printf("%d, %d\n", omp_get_thread_num(), flags[i]);
 		flag |= flags[i];
 	}
-	printf("flag: %d!\n", flag);
+	//TODO: quicktest
+	//printf("flag: %d!\n", flag);
 	return flag;
 }
 
+void ompRecenterFromCuda(int ksize)
+{
+	// re-calculate cluster centers:
+	// *****************************
+	/*
+	each thread given pseudo-private 1D arrays of size:  threads# x k#
+	e.g. ksize = 3, threads = 4:
+	step 1:
+	indices 0,4,8 will be accessed by thread 0: e.g. [4] sum x that belongs to cluster 1
+	indices 1,5,9 will be accessed by thread 1
+
+	step 2: sum each row (e.g. row 0) to get totals of k[0]
+	i.e. x_tot, y_tot, count_tot
+	step 3: divide x_tot,y_tot by count_tot for new k[0] center value.
+	*/
+
+	float* ompSumXArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
+	float* ompSumYArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
+	int*   ompCntPArr = (int*)calloc(NO_OMP_THREADS * ksize, sizeof(int));
+
+	// step 1:
+	#pragma omp parallel for num_threads(NO_OMP_THREADS)
+	//for (long i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
+	{
+		int ompArrIdx = pka[i] * NO_OMP_THREADS + omp_get_thread_num();  // row: pka[i]*NO_OMP_THREADS, col: thread id
+		ompCntPArr[ompArrIdx]++;
+		ompSumXArr[ompArrIdx] += xya->x[i];
+		ompSumYArr[ompArrIdx] += xya->y[i];
+	}
+
+	// steps 2+3:
+	//TODO: test prepK erases only what it should erase and keeps values it should not touch (clusters without points)
+	prepK(ompCntPArr, ksize);
 
 
+
+#pragma omp parallel for
+	for (int idx = 0; idx < ksize; idx++)
+	{
+		//TODO: gotta decide where in kCenters to change the value....
+
+		long count = 0;
+		for (int i = idx*NO_OMP_THREADS; i < idx*NO_OMP_THREADS + NO_OMP_THREADS; i++)
+		{
+			kCenters->x[idx] += ompSumXArr[i];
+			kCenters->y[idx] += ompSumYArr[i];
+			count += ompCntPArr[i];
+		}
+		//complete center calculation
+		kCenters->x[idx] /= count;
+		kCenters->y[idx] /= count;
+	}
+
+	free(ompSumXArr);
+	free(ompSumYArr);
+	free(ompCntPArr);
+
+}
 
 
 
@@ -346,7 +404,7 @@ void getNewPointKCenterAssociation(long i, int ksize)
 //TODO quick test
 //for (int i = 0; i < ksize; i++)
 //{
-//	printf("%d, %f, %f\n", i, kCenters->x[i], kCenters->y[i]);
+//	printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
 //}
 
 //TODO quick test
@@ -357,7 +415,6 @@ void getNewPointKCenterAssociation(long i, int ksize)
 
 //TODO quick omp thread check
 //printf("id: %d, running i: %d\n", omp_get_thread_num(), i);
-
 
 
 

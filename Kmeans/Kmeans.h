@@ -19,7 +19,7 @@ void ompGo();
 
 
 bool ompReduceCudaFlags(bool* flags, int size);
-
+void ompRecenterFromCuda(int ksize);
 
 void populateSoA(FILE* fp);
 
