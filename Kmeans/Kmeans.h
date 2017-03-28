@@ -33,3 +33,5 @@ void prepK(int* ompCntPArr, long ksize);
 void initClusterAssociationArrays();
 void getNewPointKCenterAssociation(long i, int ksize);
 void getNewPointKCenterAssociationXYBarrier(long i, int ksize);
+void loopBcast(long size);
+void serialSendRecv(long size);

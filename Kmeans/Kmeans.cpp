@@ -2,13 +2,16 @@
 #include "device_launch_parameters.h"
 
 #include <math.h>
+#include <mpi.h>
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "Kmeans.h"
 
+#define FILE_NAME "C:/Users/MPICH/Documents/Visual Studio 2015/Projects/KMeansProject/Kmeans/large_testinput_guy.txt"
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
-
+#define MASTER 0
+#define THREADS_PER_BLOCK 1024
 
 //TODO: consider adding a delimiter (testfile: ',' -- presentation: ' ')
 
@@ -22,22 +25,70 @@ xyArrays *kCenters;	// SoA of k-mean vertices
 int *pka;			// array to associate xya points with their closest cluster
 float kQuality;		// quality of current cluster configuration;
 
+int numprocs, myid;
 
 //TODO: use single/double precision in the CUDA computations (half?)
 //TOOD: use float/double precition in every stage?
 
-int main()
+int main(int argc, char *argv[])
 {
+	int res;
 	double start, finish;
-	readPointsFromFile();			 // init xya with data
+
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+	MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
+	MPI_Status status;
+
+	if (myid == MASTER)
+	{	
+		readPointsFromFile();			 // init xya with data
+
+	}
+	else
+	{
+
+		mallocSoA(&xya, N);
+	}
 	initClusterAssociationArrays();  // no cluster (-1)
+	
+	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
+	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 
-	start = omp_get_wtime();
+	//start = omp_get_wtime();
 
+	
+	//send points to slaves
+	// loopBcast(N); // doesn't work on my laptop
+	printf("N= %d", N);
+	serialSendRecv(N);
+
+
+	if (myid == MASTER)
+	{
+	}
+
+	//MPI_TEST
+	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 0, (xya->x)[0], (xya->y)[0]); fflush(stdout);
+	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 1, (xya->x)[1], (xya->y)[1]); fflush(stdout);
+	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 126, (xya->x)[126], (xya->y)[126]); fflush(stdout); 
+	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 127, (xya->x)[127], (xya->y)[127]); fflush(stdout);
+	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 510, (xya->x)[510], (xya->y)[510]); fflush(stdout);
+	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 511, (xya->x)[511], (xya->y)[511]); fflush(stdout);
+	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 99, (xya->x)[999], (xya->y)[999]); fflush(stdout);
+
+	freeSoA(xya);
+	free(pka);
+	MPI_Finalize();
+	return 0;
+	
+	
+	
 	//ompGo();
 	
 	//TODO: cudaGo();
 	//for (long ksize = 2; ksize <= MAX; ksize++)
+	
 	for (long ksize = 2; ksize <= 2; ksize++)
 	{
 		//TODO quick test
@@ -57,8 +108,13 @@ int main()
 
 		
 		//TODO: getKQuality();
-		//TODO1: for every cluster - get diameter
-
+		//TODO step1: for every cluster - get diameter
+		//concept: 1) Master sends point arrays as well as pka array to slaves
+		//master and slaves use a cuda kernel (maxSquareDistances) with a block of 1024 threads (less if it takes too long)
+		//kernel receives two sections of the array and each thread of the 1024 registers its maximum
+		//squared distance from those in the other 1024 who belong to the same cluster.
+		//master dynamically sends computers which block to compare with which block
+		//slaves send back the indices that gathe data to master to combine all 
 
 
 
@@ -91,6 +147,7 @@ int main()
 
 	freeSoA(xya);
 	free(pka);
+	MPI_Finalize();
 	return 0;
 }
 
@@ -98,15 +155,14 @@ int main()
 void readPointsFromFile()
 {
 	FILE *fp;
-	fp = fopen("large_testinput_guy.txt", "r");
+	fp = fopen(FILE_NAME, "r");
 	if (fp == NULL) {
-		fprintf(stderr, "Can't open input file\n");
+		fprintf(stderr, "Can't open input file\n"); fflush(stdout);
+		MPI_Finalize();
 		exit(1);
 	}
-
 	fscanf(fp, "%ld, %d, %d, %f", &N, &MAX, &LIMIT, &QM);	// obtain core info from first line	
 	populateSoA(fp);										// populate data into xya
-
 	fclose(fp);
 }
 
@@ -174,7 +230,10 @@ void populateSoA(FILE* fp)
 	mallocSoA(&xya, N);
 
 	for (long i = 0; i < N; i++)
-		fscanf(fp, "%d, %f, %f", &i, &(xya->x[i]), &(xya->y)[i]);
+	{
+		fscanf(fp, "%d, %f, %f", &i, &(xya->x[i]), &(xya->y[i]));
+	}
+		
 }
 
 
@@ -400,6 +459,50 @@ void getNewPointKCenterAssociation(long i, int ksize)
 	}
 }
 
+
+void loopBcast(long size) 
+{
+	// sometime fails on my laptop
+	int res, buf_size=64;
+	//for (int i = 0; i < size/buf_size; i++)
+	for (int i = 0; i < 8; i++)
+	{
+		res = MPI_Bcast(&(xya->x[buf_size * i + 0]), buf_size, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+		MPI_Barrier(MPI_COMM_WORLD);
+		res = MPI_Bcast(&(xya->y[buf_size * i + 0]), buf_size, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+		MPI_Barrier(MPI_COMM_WORLD);
+	}
+}
+	
+void serialSendRecv(long size)
+{
+	int tmp=1, buf_size = 10, blocks = size/buf_size;
+	printf("size: %d, blocks: %d", size, blocks);
+	if (myid == MASTER)
+	{
+		// send data to everyone
+		for (int i = 1; i < numprocs; i++)
+		{
+			for (int j = 0; j < blocks; j++)
+			{
+				MPI_Send(&(xya->x[j*buf_size + 0]), buf_size, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
+				MPI_Recv(&tmp, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUSES_IGNORE); //ACK
+				MPI_Send(&(xya->y[j*buf_size + 0]), buf_size, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
+				MPI_Recv(&tmp, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUSES_IGNORE); //ACK
+			}
+			
+		}
+	} else {
+		// receive the data from MASTER
+		for (int j = 0; j < blocks; j++)
+		{
+			MPI_Recv(&(xya->x[j*buf_size + 0]), buf_size, MPI_FLOAT, MASTER, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			MPI_Send(&tmp, 1, MPI_INT, MASTER, 0, MPI_COMM_WORLD); //ACK
+			MPI_Recv(&(xya->y[j*buf_size + 0]), buf_size, MPI_FLOAT, MASTER, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			MPI_Send(&tmp, 1, MPI_INT, MASTER, 0, MPI_COMM_WORLD); //ACK
+		}
+	}
+}
 
 //TODO quick test
 //for (int i = 0; i < ksize; i++)

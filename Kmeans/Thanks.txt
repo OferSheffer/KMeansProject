@@ -1,4 +1,7 @@
-Robert I. Pitts - fileio
+fileio - Robert I. Pitts
 Professional CUDA C Programming - John Cheng
 - SoA vs AoS
 Optimizing Parallel Reduction in CUDA - Mark Harris
+University of Minnesota
+ - Using MPI_Type_struct
+ SoA* cuda memory allocation - Levi barnes
