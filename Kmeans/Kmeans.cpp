@@ -43,11 +43,11 @@ int main(int argc, char *argv[])
 	if (myid == MASTER)
 	{	
 		readPointsFromFile();			 // init xya with data
-
+		MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 	}
 	else
 	{
-
+		MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 		mallocSoA(&xya, N);
 	}
 	initClusterAssociationArrays();  // no cluster (-1)
@@ -59,11 +59,9 @@ int main(int argc, char *argv[])
 
 	
 	//send points to slaves
-	// loopBcast(N); // doesn't work on my laptop
-	printf("N= %d", N);
-	serialSendRecv(N);
-
-
+	MPI_Bcast(&(xya->x[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+	MPI_Bcast(&(xya->y[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+	
 	if (myid == MASTER)
 	{
 	}
