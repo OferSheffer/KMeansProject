@@ -468,6 +468,29 @@ void getNewPointKCenterAssociation(long i, int ksize)
 	}
 }
 
+int* initJobArray(int NO_BLOCKS)
+{
+	int fact = 1;
+	for (int c = 2; c <= NO_BLOCKS; c++)
+		fact *= c;
+
+	int* jobs = (int*)malloc(2 * fact * sizeof(int));
+	int jidx = 0;
+	for (int i = 0; i < NO_BLOCKS; i++)
+		for (int j = 0; j < NO_BLOCKS; j++)
+		{
+			if (i <= j)
+			{
+				jobs[jidx++] = i;
+				jobs[jidx++] = j;
+			}
+
+		}
+	return jobs;
+}
+
+
+
 //TODO quick test
 //for (int i = 0; i < ksize; i++)
 //{

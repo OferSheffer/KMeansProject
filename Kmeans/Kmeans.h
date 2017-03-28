@@ -36,3 +36,4 @@ void getNewPointKCenterAssociation(long i, int ksize);
 void getNewPointKCenterAssociationXYBarrier(long i, int ksize);
 void loopBcast(long size);
 void serialSendRecv(long size);
+int* initJobArray(int NO_BLOCKS);

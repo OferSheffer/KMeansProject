@@ -210,7 +210,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	cudaError_t cudaStatus = cudaSuccess;
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
-
 	MPI_Status status;
 
 	//MPI test
@@ -218,9 +217,18 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 	if (myid == MASTER)
 	{
+		
+		int* jobs = initJobArray(NO_BLOCKS);
+
+
+
 		// send numprocs values to get the work started
 		for (x = 1; x < numprocs; x++)
-			MPI_Send(&x, 1, MPI_INT, x, 0, MPI_COMM_WORLD);
+		{
+
+			MPI_Send(&jobs[x], 1, MPI_INT, x, 0, MPI_COMM_WORLD);
+		}
+			
 
 		// dynamically allocate further jobs as results are coming in
 		while (count < N - 1)  // Note: N-1 results expected
