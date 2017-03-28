@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 
 			// *** kDiametersWithCuda ***
 			
-			cudaError_t cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N);
+			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "kCentersWithCuda failed!");
 				return 1;
