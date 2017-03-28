@@ -64,72 +64,77 @@ int main(int argc, char *argv[])
 	
 	if (myid == MASTER)
 	{
+		//ompGo();
+		//TODO: cudaGo();
+		//for (long ksize = 2; ksize <= MAX; ksize++)
+		for (long ksize = 2; ksize <= 2; ksize++)
+		{
+			printf("ksize: %d\n", ksize);
+			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
+			mallocSoA(&kCenters, ksize);
+
+			// allocate host memory
+			size_t nBytes = sizeof(xya);
+
+			// *** kCentersWithCuda ***
+			//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
+			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "kCentersWithCuda failed!");
+				return 1;
+			}
+
+			//TODO: getKQuality();
+			//TODO step1: for every cluster - get diameter
+			//concept: 1) Master sends point arrays as well as pka array to slaves
+			//master and slaves use a cuda kernel (maxSquareDistances) with a block of 1024 threads (less if it takes too long)
+			//kernel receives two sections of the array and each thread of the 1024 registers its maximum
+			//squared distance from those in the other 1024 who belong to the same cluster.
+			//master dynamically sends computers which block to compare with which block
+			//slaves send back the indices that gathe data to master to combine all 
+
+
+
+
+
+
+			////TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
+
+
+			////if (kQuality < QM)
+			//if (true)
+			//{
+			//	//quicktest
+			//	printf("kCenters:\n");
+			//	for (int i = 0; i < ksize; i++)
+			//		printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
+			//	//TODO: print to file
+			//	break;
+			//}
+
+
+			cudaStatus = cudaDeviceReset();
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaDeviceReset failed!");
+				return 1;
+			}
+		}
 	}
-
-	//MPI_TEST
-	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 0, (xya->x)[0], (xya->y)[0]); fflush(stdout);
-	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 1, (xya->x)[1], (xya->y)[1]); fflush(stdout);
-	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 126, (xya->x)[126], (xya->y)[126]); fflush(stdout); 
-	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 127, (xya->x)[127], (xya->y)[127]); fflush(stdout);
-	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 510, (xya->x)[510], (xya->y)[510]); fflush(stdout);
-	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 511, (xya->x)[511], (xya->y)[511]); fflush(stdout);
-	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 99, (xya->x)[999], (xya->y)[999]); fflush(stdout);
-
-	freeSoA(xya);
-	free(pka);
-	MPI_Finalize();
-	return 0;
-	
-	
-	
-	//ompGo();
-	
-	//TODO: cudaGo();
-	//for (long ksize = 2; ksize <= MAX; ksize++)
-	
-	for (long ksize = 2; ksize <= 2; ksize++)
+	else 
 	{
-		//TODO quick test
-		printf("ksize: %d\n", ksize);
-
+		// slaves
+		long ksize;
+		MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 		mallocSoA(&kCenters, ksize);
 
-		// allocate host memory
-		size_t nBytes = sizeof(xya);
 
-		//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
-		cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "kCentersWithCuda failed!");
-			return 1;
-		}
 
-		
-		//TODO: getKQuality();
-		//TODO step1: for every cluster - get diameter
-		//concept: 1) Master sends point arrays as well as pka array to slaves
-		//master and slaves use a cuda kernel (maxSquareDistances) with a block of 1024 threads (less if it takes too long)
-		//kernel receives two sections of the array and each thread of the 1024 registers its maximum
-		//squared distance from those in the other 1024 who belong to the same cluster.
-		//master dynamically sends computers which block to compare with which block
-		//slaves send back the indices that gathe data to master to combine all 
+		cudaError_t cudaStatus = cudaSuccess; //TODO: getKQuality();
 
 
 
-		////TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
 
 
-		////if (kQuality < QM)
-		//if (true)
-		//{
-		//	//quicktest
-		//	printf("kCenters:\n");
-		//	for (int i = 0; i < ksize; i++)
-		//		printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
-		//	//TODO: print to file
-		//	break;
-		//}
-		
 		cudaStatus = cudaDeviceReset();
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "cudaDeviceReset failed!");
@@ -139,9 +144,8 @@ int main(int argc, char *argv[])
 	
 	freeSoA(kCenters);
 
-
-	finish = omp_get_wtime();
-	printf("run-time: %f\n", finish - start);
+	//finish = omp_get_wtime();
+	//printf("run-time: %f\n", finish - start);
 
 	freeSoA(xya);
 	free(pka);
@@ -440,8 +444,6 @@ void prepK(int* ompCntPArr, long ksize)
 	}
 }
 
-
-
 void getNewPointKCenterAssociation(long i, int ksize)
 {
 	float minSquareDist = INFINITY;
@@ -472,7 +474,15 @@ void getNewPointKCenterAssociation(long i, int ksize)
 //TODO quick omp thread check
 //printf("id: %d, running i: %d\n", omp_get_thread_num(), i);
 
-
+//MPI_TEST
+//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 0, (xya->x)[0], (xya->y)[0]); fflush(stdout);
+//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 1, (xya->x)[1], (xya->y)[1]); fflush(stdout);
+//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 126, (xya->x)[126], (xya->y)[126]); fflush(stdout);
+//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 127, (xya->x)[127], (xya->y)[127]); fflush(stdout);
+//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 510, (xya->x)[510], (xya->y)[510]); fflush(stdout);
+//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 511, (xya->x)[511], (xya->y)[511]); fflush(stdout);
+//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 999, (xya->x)[999], (xya->y)[999]); fflush(stdout);
+//printf("id %d, %3d: %8.3f, %8.3f\n", myid, N - 1, (xya->x)[N - 1], (xya->y)[N - 1]); fflush(stdout);
 
 
 // Considerations:
