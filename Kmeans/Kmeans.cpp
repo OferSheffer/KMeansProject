@@ -62,6 +62,7 @@ int main(int argc, char *argv[])
 	MPI_Bcast(&(xya->x[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
 	MPI_Bcast(&(xya->y[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
 	
+	float* kDiameters;
 	if (myid == MASTER)
 	{
 		//ompGo();
@@ -72,6 +73,7 @@ int main(int argc, char *argv[])
 			printf("ksize: %d\n", ksize);
 			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 			mallocSoA(&kCenters, ksize);
+			kDiameters = (float*)malloc(ksize * sizeof(float));
 
 			// allocate host memory
 			size_t nBytes = sizeof(xya);
@@ -94,7 +96,13 @@ int main(int argc, char *argv[])
 			//slaves send back the indices that gathe data to master to combine all 
 
 
-
+			// *** kDiametersWithCuda ***
+			
+			cudaError_t cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N);
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "kCentersWithCuda failed!");
+				return 1;
+			}
 
 
 
@@ -126,6 +134,7 @@ int main(int argc, char *argv[])
 		long ksize;
 		MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 		mallocSoA(&kCenters, ksize);
+		kDiameters = (float*)malloc(ksize * sizeof(float));
 
 
 

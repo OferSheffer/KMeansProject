@@ -3,6 +3,7 @@
 
 #include <omp.h>
 #include <math.h>
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "Kmeans.h"
@@ -84,6 +85,8 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	cudaError_t cudaStatus;
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
+
+
 	/*
 	if (N % (THREADS_PER_BLOCK * NO_BLOCKS) != 0) {
 	fprintf(stderr, "reClusterWithCuda launch failed:\n"
@@ -197,4 +200,22 @@ Error:
 	cudaFree(d_kaFlags);
 
 	return cudaStatus;
+}
+
+int numprocs, myid;
+
+// Helper function for obtaining best candidates for kDiameters on a block x block metric
+cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N)
+{
+	
+	cudaError_t cudaStatus;
+	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
+	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
+
+	MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+	MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
+	MPI_Status status;
+
+	//MPI test
+	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 0, kDiameters[0], ksize); fflush(stdout);
 }
