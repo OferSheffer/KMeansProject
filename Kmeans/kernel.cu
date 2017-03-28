@@ -16,6 +16,7 @@
 // arrSize indices; THREADS_PER_BLOCK * NO_BLOCKS total threads;
 // Each thread in charge of THREAD_BLOCK_SIZE contigeous indices
 
+#define MASTER 0
 #define THREADS_PER_BLOCK 1024
 
 __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, bool* d_kaFlags, const int size)
@@ -203,7 +204,7 @@ Error:
 }
 
 // Helper function for obtaining best candidates for kDiameters on a block x block metric
-cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid)
+cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs)
 {
 	
 	cudaError_t cudaStatus = cudaSuccess;
@@ -213,10 +214,55 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	MPI_Status status;
 
 	//MPI test
-	printf("id %d, %3d: %8.3f, %8.3f\n", myid, 0, kDiameters[0], ksize); fflush(stdout);
+	printf("id %d, %3d: %f, %d\n", myid, NO_BLOCKS, kDiameters[0], ksize); fflush(stdout);
 
+	if (myid == MASTER)
+	{
+		// send numprocs values to get the work started
+		for (x = 1; x < numprocs; x++)
+			MPI_Send(&x, 1, MPI_INT, x, 0, MPI_COMM_WORLD);
 
+		// dynamically allocate further jobs as results are coming in
+		while (count < N - 1)  // Note: N-1 results expected
+		{
+			//TEST print
+			printf("x value %2d, count: %2d\n", x, count); fflush(stdout);
 
+			MPI_Recv(&tempAnswer, 1, MPI_DOUBLE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			count++;
+			answer += tempAnswer;
+
+			// if needed, send next x value and increase x
+			if (x < N)
+			{
+				MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+				x++;
+			}
+			else
+			{
+				// notify process about work completion
+				MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
+			}
+		}
+	}
+	else {  //slaves
+		int masterTag = 0;
+		while (masterTag == 0)
+		{
+			MPI_Recv(&x, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+			masterTag = status.MPI_TAG;
+
+			if (masterTag == 0)
+			{
+				answer = 0; // make sure local answer == 0
+				for (y = 1; y < N; y++)
+					answer += heavy(x, y);
+
+				MPI_Send(&answer, 1, MPI_DOUBLE, 0, myid, MPI_COMM_WORLD);	   // report your rank to master in tag (not necessary)
+			}
+		}
+	}
 
 
 
