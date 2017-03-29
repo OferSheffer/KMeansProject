@@ -191,20 +191,20 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	// allocate device memory
 	xyArrays *d_xya,
 		*d_kCenters;				// data and k-centers xy information
-	xyArrays h_xya, h_kCenters;     // da_xya device anchor for copying xy-arrays data
+	xyArrays da_xya, h_kCenters;     // da_xya device anchor for copying xy-arrays data
 
 	cudaMalloc(&d_xya, sizeof(xyArrays)); CHKMAL_ERROR;
 
-	cudaMalloc(&(h_xya.x), nDataBytes / 2); CHKMAL_ERROR;
-	cudaMalloc(&(h_xya.y), nDataBytes / 2); CHKMAL_ERROR;
-	cudaMemcpy(h_xya.x, xya->x, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-	cudaMemcpy(h_xya.y, xya->y, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+	cudaMalloc(&(da_xya.x), nDataBytes / 2); CHKMAL_ERROR;
+	cudaMalloc(&(da_xya.y), nDataBytes / 2); CHKMAL_ERROR;
+	cudaMemcpy(da_xya.x, xya->x, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+	cudaMemcpy(da_xya.y, xya->y, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
 	cudaMalloc(&d_kCenters, sizeof(xyArrays));
 	cudaMalloc(&(h_kCenters.x), nKCenterBytes / 2); CHKMAL_ERROR;
 	cudaMalloc(&(h_kCenters.y), nKCenterBytes / 2); CHKMAL_ERROR;
 	
-	cudaMemcpy(d_xya, &h_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+	cudaMemcpy(d_xya, &da_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 	cudaMemcpy(d_kCenters, &h_kCenters, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
 	cudaMalloc(&d_pka, N * sizeof(int)); CHKMAL_ERROR;
