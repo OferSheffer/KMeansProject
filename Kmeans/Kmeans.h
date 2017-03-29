@@ -21,6 +21,7 @@ void ompGo();
 
 bool ompReduceCudaFlags(bool* flags, int size);
 void ompRecenterFromCuda(int ksize);
+void ompMaxVectors(float** kDiameters, float* kDiametersTempAnswer, int ksize);
 
 void populateSoA(FILE* fp);
 

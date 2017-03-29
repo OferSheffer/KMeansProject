@@ -22,4 +22,8 @@ Repository settings > Remotes (add)
 
 4. commit: init multi-discipline project (sync/publish)
 
+If requested by MPICH2: (user+pass) AFEKA AFEKA (doesn't work)
+user: academia\afeka
+pass: afeka1
+
 

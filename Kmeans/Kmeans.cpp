@@ -8,7 +8,8 @@
 #include <stdlib.h>
 #include "Kmeans.h"
 
-#define FILE_NAME "C:/Users/MPICH/Documents/Visual Studio 2015/Projects/KMeansProject/Kmeans/large_testinput_guy.txt"
+//#define FILE_NAME "C:/Users/MPICH/Documents/Visual Studio 2015/Projects/KMeansProject/Kmeans/cluster1.txt"
+#define FILE_NAME "D:/cluster1.txt"
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
 #define THREADS_PER_BLOCK 1024
@@ -107,6 +108,15 @@ int main(int argc, char *argv[])
 
 
 			////TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
+			float kQuality = 0;
+			#pragma omp parallel for reduction(+:kQuality)
+			for (int i = 0; i < ksize; i++)
+			{
+				for (int j = ksize-1; j > i; j--)
+				{
+					kQuality += kDiameters[i] / (powf(kCenters->x[i] - kCenters->x[j], 2));
+				}
+			}
 
 
 			////if (kQuality < QM)
@@ -177,7 +187,7 @@ void readPointsFromFile()
 		MPI_Finalize();
 		exit(1);
 	}
-	fscanf(fp, "%ld, %d, %d, %f", &N, &MAX, &LIMIT, &QM);	// obtain core info from first line	
+	fscanf(fp, "%ld %d %d %f", &N, &MAX, &LIMIT, &QM);	// obtain core info from first line	
 	populateSoA(fp);										// populate data into xya
 	fclose(fp);
 }
@@ -247,7 +257,7 @@ void populateSoA(FILE* fp)
 
 	for (long i = 0; i < N; i++)
 	{
-		fscanf(fp, "%d, %f, %f", &i, &(xya->x[i]), &(xya->y[i]));
+		fscanf(fp, "%d %f %f", &i, &(xya->x[i]), &(xya->y[i]));
 	}
 		
 }
@@ -405,6 +415,15 @@ void ompRecenterFromCuda(int ksize)
 
 }
 
+void ompMaxVectors(float** kDiameters, float* kDiametersTempAnswer, int ksize)
+{
+#pragma omp parallel for
+	for (int i = 0; i < ksize; i++)
+	{
+		if ((*kDiameters)[i] < kDiametersTempAnswer[i])
+			(*kDiameters)[i] = kDiametersTempAnswer[i];
+	}
+}
 
 
 

@@ -288,7 +288,10 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 {
 	cudaError_t cudaStatus; //TODO: rm success
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
-
+	xyArrays *d_xya;
+	int	 *d_pka;
+	float* d_kDiameters;
+	size_t SharedMemBytes;
 	MPI_Status status;
 
 	for (int i = 0; i < ksize; i++)
@@ -309,22 +312,22 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	cudaMalloc(&(da_xya.y), nDataBytes / 2); CHKMAL_ERROR;
 	cudaMemcpy(da_xya.x, xya->x, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 	cudaMemcpy(da_xya.y, xya->y, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR; 
-	xyArrays *d_xya;
+		
 	cudaMalloc(&d_xya, sizeof(xyArrays));
 	cudaMemcpy(d_xya, &da_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
-	float* d_kDiameters;
+	//float* d_kDiameters;
 	cudaMalloc(&d_kDiameters, ksize * sizeof(float));
 	cudaMemcpy(d_kDiameters, kDiameters, ksize * sizeof(float), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
-	int	 *d_pka;
+		
 	cudaMalloc(&d_pka, N * sizeof(int)); CHKMAL_ERROR;
 	cudaMemcpy(d_pka, pka, N * sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
-	size_t SharedMemBytes = 4 * THREADS_PER_BLOCK * sizeof(float); // shared memory for flag work
+	SharedMemBytes = 4 * THREADS_PER_BLOCK * sizeof(float); // shared memory for flag work
+	
 
 	//MPI single -- working out the single BLOCK problem with CUDA
-	/*
 	if (myid == MASTER)
 	{
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
@@ -343,7 +346,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			printf("kDiam%d: %8.3f\n", i, kDiameters[i]); fflush(stdout);
 		}
 	}
-	*/
 	
 	//TODO: use MASTER GPU to asynchronously run first job
 	/*
@@ -367,7 +369,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	//MASTER-SLAVES
 	float* kDiametersTempAnswer, *kDiametersAnswer;
 	kDiametersTempAnswer = (float*)malloc(ksize * sizeof(float));
-	kDiametersAnswer = (float*)malloc(ksize * sizeof(float));
 	if (myid == MASTER)
 	{
 		
@@ -391,17 +392,17 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			//printf("x value %2d, count: %2d\n", x, resultsCounter); fflush(stdout);
 
 			//TODO:
-			MPI_Recv(&kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			resultsCounter++;
 
 			//TEST kDiameters 
 			for (int i = 0; i < ksize; i++)
 			{
-				printf("id %d - kDiam%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout);
+				printf("id %d - kAnsr%d: %8.3f\n", myid, i, kDiametersTempAnswer[i]); fflush(stdout);
 			}
 
 			//TODO:
-			//answer += tempAnswer;
+			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
 
 			// if needed, send next job and increase x
 			if (x < NO_JOBS)
@@ -415,7 +416,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, STOP_WORKING, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
 			}
 		}
-		
 		
 	}
 	// SLAVES
@@ -445,7 +445,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				//TEST kDiameters 
 				for (int i = 0; i < ksize; i++)
 				{
-					printf("id %d - kDiam%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout);
+					printf("slave %d - kDiam%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout);
 				}
 
 
@@ -460,6 +460,13 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				goto Error;
 			}
 		}
+	}
+
+	//TEST kDiameters 
+	printf("kDiameters work complete:\n"); fflush(stdout);
+	for (int i = 0; i < ksize; i++)
+	{
+		printf("id %d - kAnsr%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout);
 	}
 
 Error:
