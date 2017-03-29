@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include "Kmeans.h"
 
-//#define FILE_NAME "C:/Users/MPICH/Documents/Visual Studio 2015/Projects/KMeansProject/Kmeans/cluster1.txt"
-#define FILE_NAME "D:/cluster1.txt"
+#define FILE_NAME "C:/Users/MPICH/Documents/Visual Studio 2015/Projects/KMeansProject/Kmeans/cluster1.txt"
+//#define FILE_NAME "D:/cluster1.txt"
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
 #define THREADS_PER_BLOCK 1024
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 		//ompGo();
 		//TODO: cudaGo();
 		//for (long ksize = 2; ksize <= MAX; ksize++)
-		for (long ksize = 2; ksize <= 2; ksize++)
+		for (long ksize = 5; ksize <= 5; ksize++)
 		{
 			printf("ksize: %d\n", ksize);
 			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
