@@ -66,7 +66,8 @@ int main(int argc, char *argv[])
 	float* kDiameters;
 	if (myid == MASTER)
 	{
-		//ompGo();
+		ompGo();
+		
 		//TODO: cudaGo();
 		//for (long ksize = 2; ksize <= MAX; ksize++)
 		for (long ksize = 5; ksize <= 5; ksize++)
@@ -98,7 +99,7 @@ int main(int argc, char *argv[])
 
 
 			// *** kDiametersWithCuda ***
-			
+			MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
 			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "kCentersWithCuda failed!");
@@ -145,7 +146,7 @@ int main(int argc, char *argv[])
 		MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 		mallocSoA(&kCenters, ksize);
 		kDiameters = (float*)malloc(ksize * sizeof(float));
-
+		MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
 
 
 		//TODO: getKQuality();

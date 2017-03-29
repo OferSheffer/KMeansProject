@@ -311,7 +311,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	cudaMalloc(&(da_xya.x), nDataBytes / 2); CHKMAL_ERROR;
 	cudaMalloc(&(da_xya.y), nDataBytes / 2); CHKMAL_ERROR;
 	cudaMemcpy(da_xya.x, xya->x, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-	cudaMemcpy(da_xya.y, xya->y, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR; 
+	cudaMemcpy(da_xya.y, xya->y, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		
 	cudaMalloc(&d_xya, sizeof(xyArrays));
 	cudaMemcpy(d_xya, &da_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
@@ -378,7 +378,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		
 		// distribute work to SLAVES
 		//Testing
-		NO_JOBS = 2;
+		//NO_JOBS = 2;
 		//for (x = 1; x < numprocs && x < NO_JOBS; x++)
 		for (x = 1; x < numprocs && x < NO_JOBS; x++)
 		{
