@@ -18,7 +18,7 @@
 // Each thread in charge of THREAD_BLOCK_SIZE contigeous indices
 
 #define MASTER 0
-#define THREADS_PER_BLOCK 1024
+#define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
 #define NEW_JOB 0
 #define STOP_WORKING 1
 
@@ -164,7 +164,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 {
 	cudaError_t cudaStatus;
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
-	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 
 	// data size protection code
 	/*
