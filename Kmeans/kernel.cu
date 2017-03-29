@@ -344,6 +344,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		}
 	}
 	*/
+	
 	//TODO: use MASTER GPU to asynchronously run first job
 	/*
 	//async initializations for MASTER
@@ -364,16 +365,20 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	*/
 
 	//MASTER-SLAVES
-	double tempAnswer=0, answer=0;
+	float* kDiametersTempAnswer, *kDiametersAnswer;
+	kDiametersTempAnswer = (float*)malloc(ksize * sizeof(float));
+	kDiametersAnswer = (float*)malloc(ksize * sizeof(float));
 	if (myid == MASTER)
 	{
 		
 		int x, const NO_JOBS = (NO_BLOCKS+1)*(float)NO_BLOCKS/2;
 		int* jobs = initJobArray(NO_BLOCKS, NO_JOBS);
-		int resultsCounter = 0;
+		int resultsCounter = 1;
 		
 		// distribute work to SLAVES
-		
+		//Testing
+		NO_JOBS = 2;
+		//for (x = 1; x < numprocs && x < NO_JOBS; x++)
 		for (x = 1; x < numprocs && x < NO_JOBS; x++)
 		{
 			// send numprocs values to get the work started
@@ -386,10 +391,17 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			//printf("x value %2d, count: %2d\n", x, resultsCounter); fflush(stdout);
 
 			//TODO:
-			MPI_Recv(&tempAnswer, 1, MPI_DOUBLE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			MPI_Recv(&kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			resultsCounter++;
+
+			//TEST kDiameters 
+			for (int i = 0; i < ksize; i++)
+			{
+				printf("id %d - kDiam%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout);
+			}
+
 			//TODO:
-			answer += tempAnswer;
+			//answer += tempAnswer;
 
 			// if needed, send next job and increase x
 			if (x < NO_JOBS)
@@ -420,11 +432,28 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				//TEST print
 				printf("%d, jobForBlocks %2d, %2d\n", myid, jobForBlocks[0], jobForBlocks[1]); fflush(stdout);
 
-				answer = 0; // make sure local answer == 0
+				kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobForBlocks[0], jobForBlocks[1]);
+				cudaStatus = cudaGetLastError();
+				if (cudaStatus != cudaSuccess) {
+					fprintf(stderr, "kDiamBlockWithCuda launch failed: %s\n", cudaGetErrorString(cudaStatus));
+					goto Error;
+				}
+				cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
+
+				cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
+
+				//TEST kDiameters 
+				for (int i = 0; i < ksize; i++)
+				{
+					printf("id %d - kDiam%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout);
+				}
+
+
+				// TODO: make sure local answer == 0
 				//TODO:
 				//increment_kernel << <blocks, threads, 0, 0 >> >(d_a, value);
 
-				MPI_Send(&answer, 1, MPI_DOUBLE, 0, myid, MPI_COMM_WORLD);	   // report your rank to master in tag (not necessary)
+				MPI_Send(kDiameters, ksize, MPI_FLOAT, 0, myid, MPI_COMM_WORLD);	   // report your rank to master in tag (not necessary)
 			}
 			else
 			{
