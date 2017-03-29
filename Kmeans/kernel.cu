@@ -288,6 +288,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 {
 	cudaError_t cudaStatus; //TODO: rm success
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
+
 	MPI_Status status;
 
 	for (int i = 0; i < ksize; i++)
@@ -323,6 +324,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	size_t SharedMemBytes = 4 * THREADS_PER_BLOCK * sizeof(float); // shared memory for flag work
 
 	//MPI single -- working out the single BLOCK problem with CUDA
+	/*
 	if (myid == MASTER)
 	{
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
@@ -341,27 +343,17 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			printf("kDiam%d: %8.3f\n", i, kDiameters[i]); fflush(stdout);
 		}
 	}
+	*/
 
 	//MASTER-SLAVES
 	
 	if (myid == MASTER)
 	{
-		int fact = 1, x;
-		for (int c = 2; c <= NO_BLOCKS; c++)
-			fact *= c;
-
-		printf("fact=%d\n", fact);
-
-		int* jobs = initJobArray(NO_BLOCKS, fact);
+		
+		int x, const NO_JOBS = (NO_BLOCKS+1)*(float)NO_BLOCKS/2;
+		int* jobs = initJobArray(NO_BLOCKS, NO_JOBS);
 		int resultsCounter = 0;
 		
-		//Test jobs
-		for (x = 0; x < fact; x++)
-		{
-			printf("x=%d jobs: A%d, B%d\n", x, jobs[2 * x], jobs[2 * x + 1]);
-		}
-
-
 		//TODO:
 		//use MASTER GPU to asynchronously run first job
 		/*
