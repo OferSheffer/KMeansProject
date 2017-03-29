@@ -152,7 +152,7 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 		}
 		//TODO: consider reduction instead
 		// takes advantage of varying completion times of threads
-		AtomicMax(&(kDiameters[myK]), max);
+		AtomicMax(&(kDiameters[myK]), sqrtf(max));
 	}
 }
 
