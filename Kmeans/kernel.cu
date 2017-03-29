@@ -109,6 +109,7 @@ __device__ void AtomicMax(float * const address, const float value)
 //Note: will be x2 faster with smaller blocks -- but will require (^2/numproc) runs
 __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays* d_xya, int* pka, const int size, const int blkAIdx, const int blkBIdx)
 {
+	// if (blockIdx.x != blkAIdx) return;
 	__shared__ float dShared_SquaredXYAB[THREADS_PER_BLOCK * 4]; // save squared values for reuse
 
 	// local shared mem speedup - save squared values for reuse
@@ -287,18 +288,17 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 {
 	cudaError_t cudaStatus; //TODO: rm success
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
-	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 	MPI_Status status;
+
+	for (int i = 0; i < ksize; i++)
+	{
+		kDiameters[i] = 0;
+	}
 
 	cudaStatus = cudaSetDevice(0);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
 		goto Error;
-	}
-
-	for (int i = 0; i < ksize; i++)
-	{
-		kDiameters[i] = 0;
 	}
 
 	// allocate device memory
@@ -320,6 +320,8 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	cudaMalloc(&d_pka, N * sizeof(int)); CHKMAL_ERROR;
 	cudaMemcpy(d_pka, pka, N * sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
+	size_t SharedMemBytes = 4 * THREADS_PER_BLOCK * sizeof(float); // shared memory for flag work
+
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
@@ -330,12 +332,15 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		}
 		
 
-		cudaStatus = << < 1 , THREADS_PER_BLOCK, SharedMemBytes >> > kDiamBlockWithCuda(d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
+		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
+		cudaStatus = cudaGetLastError(); 
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "kDiamBlockWithCuda launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto Error;
 		}
 		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
+
+		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
 		//TEST kDiameters 
 		for (int i = 0; i < ksize; i++)
