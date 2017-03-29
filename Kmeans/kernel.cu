@@ -114,38 +114,45 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 	// local shared mem speedup - save squared values for reuse
 	// diameter^2 = (XA-XB)^2 + (YA-YB)^2 = XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
 	unsigned int tidA = blkAIdx * blockDim.x + threadIdx.x;
-	unsigned int tidB = blkBIdx * blockDim.x + threadIdx.x;
-	dShared_SquaredXYAB[4 * threadIdx.x] = powf(d_xya->x[tidA], 2);	// i%4==0: x^2 of blkA
-	dShared_SquaredXYAB[4 * threadIdx.x + 1] = powf(d_xya->x[tidB], 2);	// i%4==1: x^2 of blkB
-	dShared_SquaredXYAB[4 * threadIdx.x + 2] = powf(d_xya->y[tidA], 2);	// i%4==2: y^2 of blkA
-	dShared_SquaredXYAB[4 * threadIdx.x + 3] = powf(d_xya->y[tidB], 2);	// i%4==3: y^2 of blkB
-	__syncthreads();
-
-	float max = 0;
-	float cur;
-
-	// run kernel with a single block, use external block indices to syncronize operations
-	for (int oIdx = 0; oIdx < blockDim.x; oIdx++)
+	if (tidA < size)
 	{
-		// prevent repeated calculations
-		if (threadIdx.x < oIdx)
+		unsigned int tidB = blkBIdx * blockDim.x + threadIdx.x;
+		dShared_SquaredXYAB[4 * threadIdx.x + 0] = powf(d_xya->x[tidA], 2);	// i%4==0: x^2 of blkA
+		dShared_SquaredXYAB[4 * threadIdx.x + 2] = powf(d_xya->y[tidA], 2);	// i%4==2: y^2 of blkA
+		if (tidB < size)
 		{
-			tidB = blkBIdx * blockDim.x + oIdx;
+			dShared_SquaredXYAB[4 * threadIdx.x + 1] = powf(d_xya->x[tidB], 2);	// i%4==1: x^2 of blkB
+			dShared_SquaredXYAB[4 * threadIdx.x + 3] = powf(d_xya->y[tidB], 2);	// i%4==3: y^2 of blkB
+		}
+		__syncthreads();
 
-			// only calculate for points with the same k association
-			if (pka[tidA] == pka[tidB])
+		float max = 0;
+		float cur;
+		int myK = pka[tidA];
+
+		// run kernel with a single block, use external block indices to syncronize operations
+		for (int tidO, threadBRunningIdx = 0; threadBRunningIdx < blockDim.x; threadBRunningIdx++)
+		{
+			// prevent repeated calculations
+			if (threadIdx.x < threadBRunningIdx)
 			{
-				// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
-				cur = dShared_SquaredXYAB[4 * threadIdx.x]     + dShared_SquaredXYAB[4 * oIdx + 1]
-					+ dShared_SquaredXYAB[4 * threadIdx.x + 2] + dShared_SquaredXYAB[4 * oIdx + 3]
-					- 2 * d_xya->x[tidA] * d_xya->x[tidB] - 2 * d_xya->y[tidA] * d_xya->y[tidA];
-				if (cur > max) max = cur;
+				tidO = blkBIdx * blockDim.x + threadBRunningIdx;
+
+				// only calculate for points with the same k association
+				if (tidO < size && pka[tidA] == pka[tidO])
+				{
+					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
+					cur = dShared_SquaredXYAB[4 * threadIdx.x + 0] + dShared_SquaredXYAB[4 * threadBRunningIdx + 1]
+						+ dShared_SquaredXYAB[4 * threadIdx.x + 2] + dShared_SquaredXYAB[4 * threadBRunningIdx + 3]
+						- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
+					if (cur > max) max = cur;
+				}
 			}
 		}
+		//TODO: consider reduction instead
+		// takes advantage of varying completion times of threads
+		AtomicMax(&(kDiameters[pka[tidA]]), max);
 	}
-	//TODO: consider reduction instead
-	// takes advantage of varying completion times of threads
-	AtomicMax(&(kDiameters[pka[threadIdx.x]]), max);
 }
 
 
@@ -279,10 +286,16 @@ Error:
 // Helper function for obtaining best candidates for kDiameters on a block x block metric
 cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs)
 {
-	cudaError_t cudaStatus = cudaSuccess; //TODO: rm success
+	cudaError_t cudaStatus; //TODO: rm success
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 	MPI_Status status;
+
+	cudaStatus = cudaSetDevice(0);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		goto Error;
+	}
 
 	for (int i = 0; i < ksize; i++)
 	{
@@ -300,13 +313,13 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	cudaMalloc(&d_xya, sizeof(xyArrays));
 	cudaMemcpy(d_xya, &da_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
+	float* d_kDiameters;
+	cudaMalloc(&d_kDiameters, ksize * sizeof(float));
+	cudaMemcpy(d_kDiameters, kDiameters, ksize * sizeof(float), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
-
-
-	//MPI test
-	if (myid == MASTER)
-		printf("id %d, %3d: %f, %d\n", myid, NO_BLOCKS, kDiameters[0], ksize); fflush(stdout);
-
+	int	 *d_pka;
+	cudaMalloc(&d_pka, N * sizeof(int)); CHKMAL_ERROR;
+	cudaMemcpy(d_pka, pka, N * sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
@@ -318,7 +331,12 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		}
 		
 
-		kDiamBlockWithCuda(d_kDiameters, ksize, d_xya, d_pka, size, 0, 0);
+		cudaStatus = << < 1 , THREADS_PER_BLOCK, SharedMemBytes >> > kDiamBlockWithCuda(d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "kDiamBlockWithCuda launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto Error;
+		}
+		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 
 		//TEST kDiameters 
 		for (int i = 0; i < ksize; i++)
@@ -415,8 +433,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	}*/
 
 Error:
-	//cudaFree(d_xya);
-	//cudaFree(d_kCenters);
+	cudaFree(d_xya);
+	cudaFree(d_kDiameters);
+	cudaFree(d_pka);
 
 
 	return cudaStatus;
