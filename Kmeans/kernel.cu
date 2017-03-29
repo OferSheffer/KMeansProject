@@ -139,7 +139,7 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 				tidO = blkBIdx * blockDim.x + threadBRunningIdx;
 
 				// only calculate for points with the same k association
-				if (tidO < size && pka[tidA] == pka[tidO])
+				if (tidO < size && myK == pka[tidO])
 				{
 					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
 					cur = dShared_SquaredXYAB[4 * threadIdx.x + 0] + dShared_SquaredXYAB[4 * threadBRunningIdx + 1]
@@ -151,7 +151,7 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 		}
 		//TODO: consider reduction instead
 		// takes advantage of varying completion times of threads
-		AtomicMax(&(kDiameters[pka[tidA]]), max);
+		AtomicMax(&(kDiameters[myK]), max);
 	}
 }
 
