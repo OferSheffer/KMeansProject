@@ -325,13 +325,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
-		//TEST kDiameters 
-		for (int i = 0; i < ksize; i++)
-		{
-			printf("kDiam%d: %8.3f\n", i, kDiameters[i]); fflush(stdout);
-		}
-		
-
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError(); 
 		if (cudaStatus != cudaSuccess) {
@@ -347,27 +340,37 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		{
 			printf("kDiam%d: %8.3f\n", i, kDiameters[i]); fflush(stdout);
 		}
-
-
 	}
 
 	//MASTER-SLAVES
-	/*
+	
 	if (myid == MASTER)
 	{
 		int fact = 1, x;
 		for (int c = 2; c <= NO_BLOCKS; c++)
 			fact *= c;
+
+		printf("fact=%d\n", fact);
+
 		int* jobs = initJobArray(NO_BLOCKS, fact);
 		int resultsCounter = 0;
 		
+		//Test jobs
+		for (x = 0; x < fact; x++)
+		{
+			printf("x=%d jobs: A%d, B%d\n", x, jobs[2 * x], jobs[2 * x + 1]);
+		}
+
+
+		//TODO:
+		//use MASTER GPU to asynchronously run first job
+		/*
 		//async initializations for MASTER
 		cudaEvent_t myJobIsDone;
 		cudaStatus = cudaEventCreateWithFlags(&myJobIsDone, cudaEventDisableTiming); EVENT_ERROR;
 		cudaEventDestroy(myJobIsDone); EVENT_ERROR;
 
-		//use MASTER GPU to asynchronously run first job
-		//TODO:
+		
 		//cudaMemcpyAsync(d_a, a, nbytes, cudaMemcpyHostToDevice, 0);
 		//increment_kernel << <blocks, threads, 0, 0 >> >(d_a, value);
 		//cudaMemcpyAsync(a, d_a, nbytes, cudaMemcpyDeviceToHost, 0);
@@ -377,8 +380,11 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			//TODO:
 			//non-blocking recv from slaves;
 		// }
+		*/
+		
 		
 		// distribute work to SLAVES
+		/*
 		for (x = 1; x < numprocs && x < fact; x++)
 		{
 			// send numprocs values to get the work started
@@ -408,9 +414,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, STOP_WORKING, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
 			}
 		}
+		*/
 		
-		
-	} */
+	}
 	// SLAVES
 	/*
 	else {  //slaves
@@ -434,7 +440,8 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				goto Error;
 			}
 		}
-	}*/
+	}
+	*/
 
 Error:
 	cudaFree(d_xya);

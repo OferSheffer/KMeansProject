@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 		//ompGo();
 		//TODO: cudaGo();
 		//for (long ksize = 2; ksize <= MAX; ksize++)
-		for (long ksize = 2; ksize <= 2; ksize++)
+		for (long ksize = 5; ksize <= 5; ksize++)
 		{
 			printf("ksize: %d\n", ksize);
 			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
@@ -162,6 +162,7 @@ int main(int argc, char *argv[])
 
 	freeSoA(xya);
 	free(pka);
+	free(kDiameters);
 	MPI_Finalize();
 	return 0;
 }
