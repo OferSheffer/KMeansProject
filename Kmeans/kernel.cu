@@ -12,12 +12,15 @@
 #define CHKMAL_ERROR	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMalloc failed!"); goto Error; }
 #define CHKMEMCPY_ERROR if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMemcpy failed!"); goto Error; }
 #define CHKSYNC_ERROR	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaDeviceSynchronize failed! Error code %d\n", cudaStatus); goto Error; }
+#define EVENT_ERROR		if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventOperation failed! Error code %d\n", cudaStatus); goto Error; }
 
 // arrSize indices; THREADS_PER_BLOCK * NO_BLOCKS total threads;
 // Each thread in charge of THREAD_BLOCK_SIZE contigeous indices
 
 #define MASTER 0
 #define THREADS_PER_BLOCK 1024
+#define NEW_JOB 0
+#define STOP_WORKING 1
 
 __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, bool* d_kaFlags, const int size)
 {
@@ -155,10 +158,13 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		
 		cudaMemcpy(h_kCenters.x, kCenters->x, nKCenterBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		cudaMemcpy(h_kCenters.y, kCenters->y, nKCenterBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+		//TEST KCenters per iteration
+		/*
 		for (int i = 0; i < ksize; i++)
 		{
 			printf("%d: k%d, %8.3f, %8.3f\n", iter+1, i, kCenters->x[i], kCenters->y[i]);
 		}
+		*/
 
 		//KernelFunc << <DimGrid, DimBlock, SharedMemBytes >> >
 		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
@@ -206,73 +212,120 @@ Error:
 // Helper function for obtaining best candidates for kDiameters on a block x block metric
 cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs)
 {
-	
+	//TODO: consideration -- cudaMemcpyAsync()
 	cudaError_t cudaStatus = cudaSuccess;
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 	MPI_Status status;
 
 	//MPI test
-	printf("id %d, %3d: %f, %d\n", myid, NO_BLOCKS, kDiameters[0], ksize); fflush(stdout);
+	if (myid == MASTER)
+		printf("id %d, %3d: %f, %d\n", myid, NO_BLOCKS, kDiameters[0], ksize); fflush(stdout);
 
+
+	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
-		
-		int* jobs = initJobArray(NO_BLOCKS);
-
-
-
-		// send numprocs values to get the work started
-		for (x = 1; x < numprocs; x++)
+		//TEST kDiameters 
+		for (int i = 0; i < ksize; i++)
 		{
-
-			MPI_Send(&jobs[x], 1, MPI_INT, x, 0, MPI_COMM_WORLD);
+			printf("kDiam%d: %8.3f\n", i, kDiameters[i]); fflush(stdout);
 		}
-			
+		
 
+
+
+
+	}
+
+	//MASTER-SLAVES
+	/*
+	if (myid == MASTER)
+	{
+		int fact = 1, x;
+		for (int c = 2; c <= NO_BLOCKS; c++)
+			fact *= c;
+		int* jobs = initJobArray(NO_BLOCKS, fact);
+		int resultsCounter = 0;
+		
+		//async initializations for MASTER
+		cudaEvent_t myJobIsDone;
+		cudaStatus = cudaEventCreateWithFlags(&myJobIsDone, cudaEventDisableTiming); EVENT_ERROR;
+		cudaEventDestroy(myJobIsDone); EVENT_ERROR;
+
+		//use MASTER GPU to asynchronously run first job
+		//TODO:
+		//cudaMemcpyAsync(d_a, a, nbytes, cudaMemcpyHostToDevice, 0);
+		//increment_kernel << <blocks, threads, 0, 0 >> >(d_a, value);
+		//cudaMemcpyAsync(a, d_a, nbytes, cudaMemcpyDeviceToHost, 0);
+		//cudaEventRecord(myJobIsDone, 0);
+		//
+		//while (cudaEventQuery(stop) == cudaErrorNotReady) {
+			//TODO:
+			//non-blocking recv from slaves;
+		// }
+		
+		// distribute work to SLAVES
+		for (x = 1; x < numprocs && x < fact; x++)
+		{
+			// send numprocs values to get the work started
+			MPI_Send(&jobs[2*x], 2, MPI_INT, x, NEW_JOB, MPI_COMM_WORLD);
+		}
 		// dynamically allocate further jobs as results are coming in
-		while (count < N - 1)  // Note: N-1 results expected
+		while (resultsCounter < fact)
 		{
 			//TEST print
-			printf("x value %2d, count: %2d\n", x, count); fflush(stdout);
+			printf("x value %2d, count: %2d\n", x, resultsCounter); fflush(stdout);
 
+			//TODO:
 			MPI_Recv(&tempAnswer, 1, MPI_DOUBLE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-			count++;
+			resultsCounter++;
+			//TODO:
 			answer += tempAnswer;
 
-			// if needed, send next x value and increase x
-			if (x < N)
+			// if needed, send next job and increase x
+			if (x < fact)
 			{
-				MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
+				MPI_Send(&jobs[2*x], 2, MPI_INT, status.MPI_SOURCE, NEW_JOB, MPI_COMM_WORLD);
 				x++;
 			}
 			else
 			{
 				// notify process about work completion
-				MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
+				MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, STOP_WORKING, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
 			}
 		}
-	}
+		
+		
+	} */
+	// SLAVES
+	/*
 	else {  //slaves
-		int masterTag = 0;
-		while (masterTag == 0)
+		int masterTag = NEW_JOB;
+		int jobForBlocks[2];
+		while (masterTag == NEW_JOB)
 		{
-			MPI_Recv(&x, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-
+			MPI_Recv(jobForBlocks, 2, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			masterTag = status.MPI_TAG;
 
-			if (masterTag == 0)
+			if (masterTag == NEW_JOB)
 			{
 				answer = 0; // make sure local answer == 0
-				for (y = 1; y < N; y++)
-					answer += heavy(x, y);
+				//TODO:
+				//increment_kernel << <blocks, threads, 0, 0 >> >(d_a, value);
 
 				MPI_Send(&answer, 1, MPI_DOUBLE, 0, myid, MPI_COMM_WORLD);	   // report your rank to master in tag (not necessary)
 			}
+			else
+			{
+				goto Error;
+			}
 		}
-	}
+	}*/
 
-
+Error:
+	//cudaFree(d_xya);
+	//cudaFree(d_kCenters);
 
 
 	return cudaStatus;

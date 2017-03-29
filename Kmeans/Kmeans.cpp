@@ -138,8 +138,12 @@ int main(int argc, char *argv[])
 
 
 
-		cudaError_t cudaStatus = cudaSuccess; //TODO: getKQuality();
-
+		//TODO: getKQuality();
+		cudaError_t cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "kCentersWithCuda failed!");
+			return 1;
+		}
 
 
 
@@ -468,12 +472,8 @@ void getNewPointKCenterAssociation(long i, int ksize)
 	}
 }
 
-int* initJobArray(int NO_BLOCKS)
+int* initJobArray(int NO_BLOCKS, int fact)
 {
-	int fact = 1;
-	for (int c = 2; c <= NO_BLOCKS; c++)
-		fact *= c;
-
 	int* jobs = (int*)malloc(2 * fact * sizeof(int));
 	int jidx = 0;
 	for (int i = 0; i < NO_BLOCKS; i++)
