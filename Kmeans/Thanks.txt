@@ -5,3 +5,5 @@ Optimizing Parallel Reduction in CUDA - Mark Harris
 University of Minnesota
  - Using MPI_Type_struct
  SoA* cuda memory allocation - Levi barnes
+ CUDA AtomicMax for floats - NVIDIA
+ 

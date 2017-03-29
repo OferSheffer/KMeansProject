@@ -24,7 +24,7 @@
 
 __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, bool* d_kaFlags, const int size)
 {
-	__shared__ bool dShared_kaFlags[1024]; // array to flag changes in point-to-cluster association
+	__shared__ bool dShared_kaFlags[THREADS_PER_BLOCK]; // array to flag changes in point-to-cluster association
 
 	unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	int prevPka;
@@ -62,7 +62,7 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 		__syncthreads();
 #endif
 		// do reduction in shared mem
-		for (unsigned int s = blockDim.x / 2; s>32; s >>= 1)
+		for (unsigned int s = blockDim.x / 2; s > 32; s >>= 1)
 		{
 			if (tid < s)
 				dShared_kaFlags[ltid] |= dShared_kaFlags[ltid + s];
@@ -83,6 +83,75 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 	}
 }
 
+// Helper for kDiamBlockWithCuda
+__device__ void AtomicMax(float * const address, const float value)
+{
+	if (*address >= value)
+	{
+		return;
+	}
+
+	int * const address_as_i = (int *)address;
+	int old = *address_as_i, assumed;
+
+	do
+	{
+		assumed = old;
+		if (__int_as_float(assumed) >= value)
+		{
+			break;
+		}
+
+		old = atomicCAS(address_as_i, assumed, __float_as_int(value));
+	} while (assumed != old);
+}
+
+//Note: will be x2 faster with smaller blocks -- but will require (^2/numproc) runs
+__global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays* d_xya, int* pka, const int size, const int blkAIdx, const int blkBIdx)
+{
+	__shared__ float dShared_SquaredXYAB[THREADS_PER_BLOCK * 4]; // save squared values for reuse
+
+	// local shared mem speedup - save squared values for reuse
+	// diameter^2 = (XA-XB)^2 + (YA-YB)^2 = XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
+	unsigned int tidA = blkAIdx * blockDim.x + threadIdx.x;
+	unsigned int tidB = blkBIdx * blockDim.x + threadIdx.x;
+	dShared_SquaredXYAB[4 * threadIdx.x] = powf(d_xya->x[tidA], 2);	// i%4==0: x^2 of blkA
+	dShared_SquaredXYAB[4 * threadIdx.x + 1] = powf(d_xya->x[tidB], 2);	// i%4==1: x^2 of blkB
+	dShared_SquaredXYAB[4 * threadIdx.x + 2] = powf(d_xya->y[tidA], 2);	// i%4==2: y^2 of blkA
+	dShared_SquaredXYAB[4 * threadIdx.x + 3] = powf(d_xya->y[tidB], 2);	// i%4==3: y^2 of blkB
+	__syncthreads();
+
+	float max = 0;
+	float cur;
+
+	// run kernel with a single block, use external block indices to syncronize operations
+	for (int oIdx = 0; oIdx < blockDim.x; oIdx++)
+	{
+		// prevent repeated calculations
+		if (threadIdx.x < oIdx)
+		{
+			tidB = blkBIdx * blockDim.x + oIdx;
+
+			// only calculate for points with the same k association
+			if (pka[tidA] == pka[tidB])
+			{
+				// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
+				cur = dShared_SquaredXYAB[4 * threadIdx.x]     + dShared_SquaredXYAB[4 * oIdx + 1]
+					+ dShared_SquaredXYAB[4 * threadIdx.x + 2] + dShared_SquaredXYAB[4 * oIdx + 3]
+					- 2 * d_xya->x[tidA] * d_xya->x[tidB] - 2 * d_xya->y[tidA] * d_xya->y[tidA];
+				if (cur > max) max = cur;
+			}
+		}
+	}
+	//TODO: consider reduction instead
+	// takes advantage of varying completion times of threads
+	AtomicMax(&(kDiameters[pka[threadIdx.x]]), max);
+}
+
+
+
+
+
 // Helper function for finding best centers for ksize clusters
 cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* pka, long N, int LIMIT)
 {
@@ -90,7 +159,7 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 
-
+	// data size protection code
 	/*
 	if (N % (THREADS_PER_BLOCK * NO_BLOCKS) != 0) {
 	fprintf(stderr, "reClusterWithCuda launch failed:\n"
@@ -105,7 +174,7 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 	// memory init block
 	//{
-	size_t nDataBytes = N * sizeof(*xya);
+	size_t nDataBytes = N * sizeof(*xya);  // N x 2 x sizeof(float)
 	size_t nKCenterBytes = ksize * sizeof(*kCenters);
 	bool	 *h_kaFlags;
 	int	 *d_pka;					// array to associate xya points with their closest cluster
@@ -116,17 +185,15 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		goto Error;
 	}
 
-	// size helpers
-
 	// allocate host-side helpers
 	h_kaFlags = (bool*)malloc(NO_BLOCKS * sizeof(bool));
 
 	// allocate device memory
 	xyArrays *d_xya,
 		*d_kCenters;				// data and k-centers xy information
-	xyArrays h_xya, h_kCenters;
+	xyArrays h_xya, h_kCenters;     // da_xya device anchor for copying xy-arrays data
 
-	cudaMalloc(&d_xya, sizeof(xyArrays));
+	cudaMalloc(&d_xya, sizeof(xyArrays)); CHKMAL_ERROR;
 
 	cudaMalloc(&(h_xya.x), nDataBytes / 2); CHKMAL_ERROR;
 	cudaMalloc(&(h_xya.y), nDataBytes / 2); CHKMAL_ERROR;
@@ -212,11 +279,29 @@ Error:
 // Helper function for obtaining best candidates for kDiameters on a block x block metric
 cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs)
 {
-	//TODO: consideration -- cudaMemcpyAsync()
-	cudaError_t cudaStatus = cudaSuccess;
+	cudaError_t cudaStatus = cudaSuccess; //TODO: rm success
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 	MPI_Status status;
+
+	for (int i = 0; i < ksize; i++)
+	{
+		kDiameters[i] = 0;
+	}
+
+	// allocate device memory
+	size_t nDataBytes = N * sizeof(*xya);  // N x 2 x sizeof(float)
+	xyArrays da_xya;  // device anchor for copying xy-arrays data
+	cudaMalloc(&(da_xya.x), nDataBytes / 2); CHKMAL_ERROR;
+	cudaMalloc(&(da_xya.y), nDataBytes / 2); CHKMAL_ERROR;
+	cudaMemcpy(da_xya.x, xya->x, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+	cudaMemcpy(da_xya.y, xya->y, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR; 
+	xyArrays *d_xya;
+	cudaMalloc(&d_xya, sizeof(xyArrays));
+	cudaMemcpy(d_xya, &da_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+
+
+
 
 	//MPI test
 	if (myid == MASTER)
@@ -233,7 +318,13 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		}
 		
 
+		kDiamBlockWithCuda(d_kDiameters, ksize, d_xya, d_pka, size, 0, 0);
 
+		//TEST kDiameters 
+		for (int i = 0; i < ksize; i++)
+		{
+			printf("kDiam%d: %8.3f\n", i, kDiameters[i]); fflush(stdout);
+		}
 
 
 	}
