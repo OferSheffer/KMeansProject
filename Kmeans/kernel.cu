@@ -247,13 +247,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	//cudaMemcpy(kCenters->x, h_kCenters.x, nKCenterBytes / 2, cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 	//cudaMemcpy(kCenters->y, h_kCenters.y, nKCenterBytes / 2, cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
-	//TODO quick test
-	printf("k-complete calculated centers are:\n");
-	printArrTestPrint(MASTER, kCenters->x, ksize, "ompMaster - kCentersX");
-	printArrTestPrint(MASTER, kCenters->y, ksize, "ompMaster - kCentersY");
-	printf("********************************************************\n\n");
-	
-
 	free(h_kaFlags);
 
 Error:

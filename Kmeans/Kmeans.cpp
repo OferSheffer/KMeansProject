@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
 	
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
+
 #ifdef _DEBUGT
 	start = omp_get_wtime();
 #endif
@@ -65,7 +66,9 @@ int main(int argc, char *argv[])
 			//ompGoTest(int initSize, int maxSize)
 			ompGoTest(ksize, ksize);
 #endif
+#ifdef _DEBUGV
 			printf("Full algorithm -- on ksize: %d\n***********************\n", ksize); fflush(stdout);
+#endif
 			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 			mallocSoA(&kCenters, ksize);
 			kDiameters = (float*)malloc(ksize * sizeof(float));
@@ -80,7 +83,12 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "kCentersWithCuda failed!");
 				return 1;
 			}
-
+#ifdef _DEBUGV
+			printf("k-complete calculated centers are:\n");
+			printArrTestPrint(MASTER, kCenters->x, ksize, "ompMaster - kCentersX");
+			printArrTestPrint(MASTER, kCenters->y, ksize, "ompMaster - kCentersY");
+			printf("********************************************************\n\n");
+#endif
 			//getKQuality();
 			//step1: for every cluster - get diameter
 			//concept: 1) Master sends point arrays as well as pka array to slaves
@@ -118,18 +126,24 @@ int main(int argc, char *argv[])
 			}
 
 #ifdef _DEBUG5
-			//TEST kDiameters 
-			printf("\nQuality work complete:   ***  %f  *** Smaller than %f?  * %d *\n\n*********************************************\n", kQuality, QM, (kQuality <= QM));  fflush(stdout);
+			//TEST Quality
+			printf("\nQuality work complete:   ***  %f  *** Smaller than %f?  * %d *\n\n*********************************************\n", kQuality, QM, (kQuality <= QM)); FF;
 #endif
 
 			if (kQuality <= QM)
 			{
-				//TODO: let the slaves know the job is done
+#ifdef _DEBUGT
+				finish = omp_get_wtime();
+#endif
+				//print to file
+				printArrTestPrint(MASTER, kCenters->x, ksize, "kCentersX");
+				printArrTestPrint(MASTER, kCenters->y, ksize, "kCentersY");
+				printf("********************************************************\n\n"); FF;
+				//let the slaves know the job is done
 				ksize = 0;
 				MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
-				//TODO: print to file
-				
-				
+				printf("\nQuality work complete:   ***  %f  *** Smaller than %f?  * %d *\n\n*********************************************\n", kQuality, QM, (kQuality <= QM)); FF;
+
 				cudaStatus = cudaDeviceReset();
 				if (cudaStatus != cudaSuccess) {
 					fprintf(stderr, "cudaDeviceReset failed!");
@@ -154,9 +168,10 @@ int main(int argc, char *argv[])
 		while(true)
 		{
 			cudaError_t cudaStatus;
+			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 			if (ksize == 0)
 			{
-				cudaStatus = cudaDeviceReset();
+					cudaStatus = cudaDeviceReset();
 				if (cudaStatus != cudaSuccess) {
 					fprintf(stderr, "cudaDeviceReset failed!");
 					return 1;
@@ -165,7 +180,6 @@ int main(int argc, char *argv[])
 				break;
 			}
 
-			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 			mallocSoA(&kCenters, ksize);
 			kDiameters = (float*)malloc(ksize * sizeof(float));
 			MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
@@ -191,12 +205,11 @@ int main(int argc, char *argv[])
 	freeSoA(kCenters);
 
 #ifdef _DEBUGV
-	printf("Process %d signing off.\n", myid); FF
+	printf("Process %d signing off.\n", myid); FF;
 #endif
 
 #ifdef _DEBUGT
-	finish = omp_get_wtime();
-	printf("run-time: %f\n", finish - start); FF
+	if (myid == MASTER) { printf("run-time: %f\n", finish - start); FF; }
 #endif
 	freeSoA(xya);
 	free(pka);
