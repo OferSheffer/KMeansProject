@@ -1,8 +1,9 @@
 
 #include "Kmeans.h"
 
-//#define FILE_NAME "C:/Users/MPICH/Documents/Visual Studio 2015/Projects/KMeansProject/Kmeans/cluster1.txt"
-#define FILE_NAME "D:/cluster1.txt"
+//NOTE: use \\ in systems were / does not work
+#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
+//#define FILE_NAME "D:\\cluster1.txt"
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
 #define THREADS_PER_BLOCK 1024
@@ -45,9 +46,9 @@ int main(int argc, char *argv[])
 	
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
-
-	//start = omp_get_wtime();
-
+#ifdef _DEBUGT
+	start = omp_get_wtime();
+#endif
 	
 	//send points to slaves
 	MPI_Bcast(&(xya->x[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
@@ -109,9 +110,10 @@ int main(int argc, char *argv[])
 			#pragma omp parallel for reduction(+:kQuality)
 			for (int i = 0; i < ksize; i++)
 			{
-				for (int j = ksize-1; j > i; j--)
+				for (int j = 0; j < ksize; j++)
 				{
-					kQuality += kDiameters[i] / sqrtf((powf(kCenters->x[i] - kCenters->x[j], 2)) + (powf(kCenters->y[i] - kCenters->y[j], 2)));
+					if (i != j)
+						kQuality += kDiameters[i] / sqrtf((powf(kCenters->x[i] - kCenters->x[j], 2)) + (powf(kCenters->y[i] - kCenters->y[j], 2)));
 				}
 			}
 
@@ -188,9 +190,14 @@ int main(int argc, char *argv[])
 	
 	freeSoA(kCenters);
 
-	//finish = omp_get_wtime();
-	//printf("run-time: %f\n", finish - start);
+#ifdef _DEBUGV
+	printf("Process %d signing off.\n", myid); FF
+#endif
 
+#ifdef _DEBUGT
+	finish = omp_get_wtime();
+	printf("run-time: %f\n", finish - start); FF
+#endif
 	freeSoA(xya);
 	free(pka);
 	free(kDiameters);

@@ -12,6 +12,8 @@
 #pragma warning(disable:4996)
 
 #define FF fflush(stdout);
+#define _DEBUGV		// verbose
+#define _DEBUGT
 //#define _DEBUG1 // temp values
 //#define _DEBUG2 // low level progress
 //#define _DEBUG3 // omp k-centers results -- for comparison
