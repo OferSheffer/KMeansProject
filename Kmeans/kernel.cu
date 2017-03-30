@@ -25,11 +25,12 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 	__shared__ bool dShared_kaFlags[THREADS_PER_BLOCK]; // array to flag changes in point-to-cluster association
 
 	unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	unsigned int ltid = threadIdx.x;
 	int prevPka;
 	// for every point: save idx where min(distance from k[idx]	
 	if (tid < size)
 	{
-		dShared_kaFlags[tid] = false; // no changes yet
+		dShared_kaFlags[ltid] = false; // no changes yet
 		prevPka = pka[tid]; // save associated cluster idx
 
 		float minSquareDist = INFINITY;
@@ -46,14 +47,14 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 		}
 		if (pka[tid] != prevPka)
 		{
-			dShared_kaFlags[tid] = true;
+			dShared_kaFlags[ltid] = true;
 		}
 		// reduction for d_kaFlag
 		__syncthreads();
 		// do reduction in shared mem
 		//reduce(dShared_kaFlags);
 		// each thread loads one element from global to shared mem
-		unsigned int ltid = threadIdx.x;
+		
 #if 0
 		unsigned int i = blockIdx.x*(blockDim.x * 2) + threadIdx.x;
 		blockIdx.x * blockDim.x + threadIdx.x;
@@ -168,7 +169,7 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 	initK(ksize);				// K-centers = first points in data (on host)
 	int iter = 0;
-	size_t SharedMemBytes = N * sizeof(bool); // shared memory for flag work
+	size_t SharedMemBytes = THREADS_PER_BLOCK * sizeof(bool); // shared memory for flag work
 	bool flag;
 
 	// memory initializations
@@ -230,6 +231,10 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		}
 		*/
 
+
+#ifdef _DEBUGSM
+		printf("__global__ reClusterWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
+#endif
 		//KernelFunc << <DimGrid, DimBlock, SharedMemBytes >> >
 		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
 		cudaStatus = cudaGetLastError();
@@ -315,6 +320,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #ifdef _DEBUG2
 		//TEST print
 		printf("%d, FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
+#endif
+#ifdef _DEBUGSM
+		printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
 #endif
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError(); 
@@ -416,6 +424,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #ifdef _DEBUG2
 				//TEST print
 				printf("%d, jobForBlocks %2d, %2d\n", myid, jobForBlocks[0], jobForBlocks[1]); fflush(stdout);
+#endif
+#ifdef _DEBUGSM
+				printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
 #endif
 				kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobForBlocks[0], jobForBlocks[1]);
 				cudaStatus = cudaGetLastError();

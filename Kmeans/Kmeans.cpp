@@ -6,7 +6,12 @@
 //#define FILE_NAME "D:\\cluster1.txt"
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
-#define THREADS_PER_BLOCK 1024
+
+#ifndef _WEAKGPU
+#define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
+#else
+#define THREADS_PER_BLOCK 128	// weak gpu
+#endif // not _WEAKGPU
 
 //TODO: review different ways to get better messages: currently works up to 40000 on my laptop. 
 //TODO: note: different error messages between 50000 and 100000
