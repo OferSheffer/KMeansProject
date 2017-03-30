@@ -391,15 +391,11 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			//TEST print
 			//printf("x value %2d, count: %2d\n", x, resultsCounter); fflush(stdout);
 
-			//TODO:
 			MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			resultsCounter++;
 
 			//TEST kDiameters 
-			for (int i = 0; i < ksize; i++)
-			{
-				printf("id %d - kAnsr%d: %8.3f\n", myid, i, kDiametersTempAnswer[i]); fflush(stdout);
-			}
+			printKDiamsTestPrint(myid, kDiameters, ksize);
 
 			//TODO:
 			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
@@ -443,15 +439,8 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
 				//TEST kDiameters 
-				for (int i = 0; i < ksize; i++)
-				{
-					printf("slave %d - kDiam%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout);
-				}
-
-
-				// TODO: make sure local answer == 0
-				//TODO:
-				//increment_kernel << <blocks, threads, 0, 0 >> >(d_a, value);
+				printKDiamsTestPrint(myid, kDiameters, ksize);
+				
 
 				MPI_Send(kDiameters, ksize, MPI_FLOAT, 0, myid, MPI_COMM_WORLD);	   // report your rank to master in tag (not necessary)
 			}

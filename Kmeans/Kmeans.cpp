@@ -28,12 +28,9 @@ float kQuality;		// quality of current cluster configuration;
 
 int numprocs, myid;
 
-//TODO: use single/double precision in the CUDA computations (half?)
-//TOOD: use float/double precition in every stage?
-
 int main(int argc, char *argv[])
 {
-	int res;
+	//int res;
 	double start, finish;
 
 	MPI_Init(&argc, &argv);
@@ -508,6 +505,37 @@ int* initJobArray(int NO_BLOCKS, int fact)
 
 		}
 	return jobs;
+}
+
+void printKDiamsTestPrint(int myid, float* kDiameters, int ksize)
+{
+	switch (ksize)
+	{
+	case 2:
+		printf("slave %d - kDiam%d-%d: %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		break;
+	case 3:
+		printf("slave %d - kDiam%d-%d: %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		break;
+	case 4:
+		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		break;
+	case 5:
+		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		break;
+	case 6:
+		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		break;
+	case 7:
+		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		break;
+	case 8:
+		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f, %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		break;
+	default:
+		for (int i = 0; i < ksize; i++) { printf("slave %d - kDiam%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout); }
+		break;
+	}
 }
 
 

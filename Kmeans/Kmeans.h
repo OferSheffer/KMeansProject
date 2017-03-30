@@ -38,3 +38,5 @@ void getNewPointKCenterAssociationXYBarrier(long i, int ksize);
 void loopBcast(long size);
 void serialSendRecv(long size);
 int* initJobArray(int NO_BLOCKS, int fact);
+
+void printKDiamsTestPrint(int myid, float* kDiameters, int ksize);
