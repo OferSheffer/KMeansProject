@@ -39,4 +39,4 @@ void loopBcast(long size);
 void serialSendRecv(long size);
 int* initJobArray(int NO_BLOCKS, int fact);
 
-void printKDiamsTestPrint(int myid, float* kDiameters, int ksize);
+void printArrTestPrint(int myid, float* arr, int size, const char* arrName);

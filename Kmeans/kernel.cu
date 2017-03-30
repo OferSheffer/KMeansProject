@@ -343,7 +343,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
 		//TEST kDiameters 
-		printKDiamsTestPrint(myid, kDiameters, ksize);
+		printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 	}
 	
 	//TODO: use MASTER GPU to asynchronously run first job
@@ -394,7 +394,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			resultsCounter++;
 
 			//TEST kDiameters 
-			printKDiamsTestPrint(myid, kDiameters, ksize);
+			printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 
 			//TODO:
 			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
@@ -438,7 +438,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
 				//TEST kDiameters 
-				printKDiamsTestPrint(myid, kDiameters, ksize);
+				printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 				
 
 				MPI_Send(kDiameters, ksize, MPI_FLOAT, 0, myid, MPI_COMM_WORLD);	   // report your rank to master in tag (not necessary)
@@ -453,7 +453,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	//TEST kDiameters 
 	printf("\nkDiameters work complete:\n"
 	         "------------------------\n"); fflush(stdout);
-	printKDiamsTestPrint(myid, kDiameters, ksize);
+	printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 
 
 Error:
