@@ -1,15 +1,8 @@
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
 
-#include <math.h>
-#include <mpi.h>
-#include <omp.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "Kmeans.h"
 
-#define FILE_NAME "C:/Users/MPICH/Documents/Visual Studio 2015/Projects/KMeansProject/Kmeans/cluster1.txt"
-//#define FILE_NAME "D:/cluster1.txt"
+//#define FILE_NAME "C:/Users/MPICH/Documents/Visual Studio 2015/Projects/KMeansProject/Kmeans/cluster1.txt"
+#define FILE_NAME "D:/cluster1.txt"
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
 #define THREADS_PER_BLOCK 1024
@@ -67,7 +60,7 @@ int main(int argc, char *argv[])
 		//for (long ksize = 2; ksize <= MAX; ksize++)
 		for (long ksize = 2; ksize <= MAX; ksize++)
 		{
-#ifdef _DEBUG2
+#ifdef _DEBUG3
 			//ompGoTest(int initSize, int maxSize)
 			ompGoTest(ksize, ksize);
 #endif
@@ -104,7 +97,7 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "kCentersWithCuda failed!");
 				return 1;
 			}
-#ifdef _DEBUG3
+#ifdef _DEBUG4
 			//TEST kDiameters 
 			printf("\nkDiameters work complete:\n"
 				"------------------------\n"); fflush(stdout);
@@ -122,7 +115,7 @@ int main(int argc, char *argv[])
 				}
 			}
 
-#ifdef _DEBUG4
+#ifdef _DEBUG5
 			//TEST kDiameters 
 			printf("\nQuality work complete:   ***  %f  *** Smaller than %f?  * %d *\n\n*********************************************\n", kQuality, QM, (kQuality <= QM));  fflush(stdout);
 #endif
@@ -211,7 +204,7 @@ void readPointsFromFile()
 	FILE *fp;
 	fp = fopen(FILE_NAME, "r");
 	if (fp == NULL) {
-		fprintf(stderr, "Can't open input file\n"); fflush(stdout);
+		fprintf(stderr, "Can't open input file\n"); fflush(stderr);
 		MPI_Finalize();
 		exit(1);
 	}

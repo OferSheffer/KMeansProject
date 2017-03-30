@@ -1,11 +1,4 @@
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
 
-#include <omp.h>
-#include <math.h>
-#include <mpi.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "Kmeans.h"
 
 
@@ -319,7 +312,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
-#ifdef _DEBUG1
+#ifdef _DEBUG2
 		//TEST print
 		printf("%d, FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
 #endif
@@ -333,7 +326,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
-#ifdef _DEBUG0
+#ifdef _DEBUG1
 		//TEST kDiameters 
 		printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 #endif
@@ -388,7 +381,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
 
-#ifdef _DEBUG0
+#ifdef _DEBUG1
 			//TEST kDiameters 
 			printf("\nMaster values after MaxVectors with source %d !!\n", status.MPI_SOURCE);
 			printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
@@ -420,7 +413,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 			if (masterTag == NEW_JOB)
 			{
-#ifdef _DEBUG1
+#ifdef _DEBUG2
 				//TEST print
 				printf("%d, jobForBlocks %2d, %2d\n", myid, jobForBlocks[0], jobForBlocks[1]); fflush(stdout);
 #endif
@@ -433,7 +426,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 
 				cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-#ifdef _DEBUG0
+#ifdef _DEBUG1
 				//TEST kDiameters 
 				printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 #endif

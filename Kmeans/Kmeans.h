@@ -3,13 +3,20 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
+#include <math.h>
+#include <mpi.h>
+#include <omp.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 #pragma warning(disable:4996)
 
-//#define _DEBUG0 // temp values
-//#define _DEBUG1 // low level progress
-//#define _DEBUG2 // omp k-centers results -- for comparison
-#define _DEBUG3 // mid level values test -- diameters final
-#define _DEBUG4 // mid level values test
+#define FF fflush(stdout);
+//#define _DEBUG1 // temp values
+//#define _DEBUG2 // low level progress
+//#define _DEBUG3 // omp k-centers results -- for comparison
+#define _DEBUG4 // mid level values test -- diameters final
+#define _DEBUG5 // mid level values test
 
 // SoA: reduce load/store operations
 typedef struct _xyArrays {
@@ -19,7 +26,6 @@ typedef struct _xyArrays {
 
 cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* pka, long N, int LIMIT);
 cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs);
-//cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
 void readPointsFromFile();
 void ompGoTest(int initSize, int maxSize);
