@@ -65,7 +65,6 @@ int main(int argc, char *argv[])
 	//send points to slaves
 	MPI_Bcast(&(xya->x[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
 	MPI_Bcast(&(xya->y[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
-	
 	float* kDiameters;
 	if (myid == MASTER)
 	{
@@ -86,14 +85,14 @@ int main(int argc, char *argv[])
 
 			// allocate host memory
 			size_t nBytes = sizeof(xya);
-
+			
 			// *** kCentersWithCuda ***
 			//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
 			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "kCentersWithCuda failed!");
 				return 1;
-			}
+			} 
 #ifdef _DEBUGV
 			printf("k-complete calculated centers are:\n");
 			printArrTestPrint(MASTER, kCenters->x, ksize, "ompMaster - kCentersX");

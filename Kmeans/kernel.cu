@@ -171,7 +171,7 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	int iter = 0;
 	size_t SharedMemBytes = THREADS_PER_BLOCK * sizeof(bool); // shared memory for flag work
 	bool flag;
-
+	
 	// memory initializations
 	size_t nDataBytes = N * sizeof(*xya);  // N x 2 x sizeof(float)
 	size_t nKCenterBytes = ksize * sizeof(*kCenters);
@@ -186,19 +186,19 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 	// allocate host-side helpers
 	h_kaFlags = (bool*)malloc(NO_BLOCKS * sizeof(bool));
-
+	
 	// allocate device memory
 	xyArrays *d_xya,
 		*d_kCenters;				// data and k-centers xy information
 	xyArrays da_xya, h_kCenters;     // da_xya device anchor for copying xy-arrays data
 
 	cudaMalloc(&d_xya, sizeof(xyArrays)); CHKMAL_ERROR;
-
+	
 	cudaMalloc(&(da_xya.x), nDataBytes / 2); CHKMAL_ERROR;
-	cudaMalloc(&(da_xya.y), nDataBytes / 2); CHKMAL_ERROR;
-	cudaMemcpy(da_xya.x, xya->x, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-	cudaMemcpy(da_xya.y, xya->y, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-
+	cudaMalloc(&(da_xya.y), nDataBytes / 2); CHKMAL_ERROR; DDD
+	cudaMemcpy(da_xya.x, xya->x, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR; DDD
+	cudaMemcpy(da_xya.y, xya->y, nDataBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR; DDD
+	
 	cudaMalloc(&d_kCenters, sizeof(xyArrays));
 	cudaMalloc(&(h_kCenters.x), nKCenterBytes / 2); CHKMAL_ERROR;
 	cudaMalloc(&(h_kCenters.y), nKCenterBytes / 2); CHKMAL_ERROR;
@@ -211,13 +211,13 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 	// copy cluster association data from host to device
 	cudaMemcpy(d_pka, pka, N * sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-
+	
 	cudaStatus = cudaMemset((void*)d_kaFlags, 0, N * sizeof(bool));
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMemset failed!\n");
 		goto Error;
 	}
-
+	
 	// *** phase 1 ***
 	do {
 		
