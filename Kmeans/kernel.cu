@@ -330,6 +330,8 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
+		//TEST print
+		printf("%d, FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError(); 
 		if (cudaStatus != cudaSuccess) {
@@ -341,10 +343,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
 		//TEST kDiameters 
-		for (int i = 0; i < ksize; i++)
-		{
-			printf("kDiam%d: %8.3f\n", i, kDiameters[i]); fflush(stdout);
-		}
+		printKDiamsTestPrint(myid, kDiameters, ksize);
 	}
 	
 	//TODO: use MASTER GPU to asynchronously run first job
@@ -452,11 +451,10 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	}
 
 	//TEST kDiameters 
-	printf("kDiameters work complete:\n"); fflush(stdout);
-	for (int i = 0; i < ksize; i++)
-	{
-		printf("id %d - kAnsr%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout);
-	}
+	printf("\nkDiameters work complete:\n"
+	         "------------------------\n"); fflush(stdout);
+	printKDiamsTestPrint(myid, kDiameters, ksize);
+
 
 Error:
 	cudaFree(d_xya);

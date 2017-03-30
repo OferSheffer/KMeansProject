@@ -509,31 +509,32 @@ int* initJobArray(int NO_BLOCKS, int fact)
 
 void printKDiamsTestPrint(int myid, float* kDiameters, int ksize)
 {
+	char* user = (myid == MASTER) ? "Master" : "slave";
 	switch (ksize)
 	{
 	case 2:
-		printf("slave %d - kDiam%d-%d: %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		printf("%6s %d - kDiam%d-%d: %f, %f\n", user, myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
 		break;
 	case 3:
-		printf("slave %d - kDiam%d-%d: %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		printf("%6s %d - kDiam%d-%d: %f, %f, %f\n", user, myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
 		break;
 	case 4:
-		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		printf("%6s %d - kDiam%d-%d: %f, %f, %f, %f\n", user, myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
 		break;
 	case 5:
-		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		printf("%6s %d - kDiam%d-%d: %f, %f, %f, %f, %f\n", user, myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
 		break;
 	case 6:
-		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		printf("%6s %d - kDiam%d-%d: %f, %f, %f, %f, %f, %f\n", user, myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
 		break;
 	case 7:
-		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		printf("%6s %d - kDiam%d-%d: %f, %f, %f, %f, %f, %f, %f\n", user, myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
 		break;
 	case 8:
-		printf("slave %d - kDiam%d-%d: %f, %f, %f, %f, %f, %f, %f, %f\n", myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
+		printf("%6s %d - kDiam%d-%d: %f, %f, %f, %f, %f, %f, %f, %f\n", user, myid, 0, 4, kDiameters[0], kDiameters[1], kDiameters[2], kDiameters[3], kDiameters[4]); fflush(stdout);
 		break;
 	default:
-		for (int i = 0; i < ksize; i++) { printf("slave %d - kDiam%d: %8.3f\n", myid, i, kDiameters[i]); fflush(stdout); }
+		for (int i = 0; i < ksize; i++) { printf("slave %d - kDiam%d: %8.3f\n", user, myid, i, kDiameters[i]); fflush(stdout); }
 		break;
 	}
 }
