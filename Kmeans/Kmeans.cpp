@@ -63,7 +63,8 @@ int main(int argc, char *argv[])
 	float* kDiameters;
 	if (myid == MASTER)
 	{
-		ompGo();
+		//ompGoTest(int initSize, int maxSize)
+		ompGoTest(5, 5);
 		
 		//TODO: cudaGo();
 		//for (long ksize = 2; ksize <= MAX; ksize++)
@@ -201,41 +202,23 @@ void initClusterAssociationArrays()
 	}
 }
 
-void ompGo()
+void ompGoTest(int initSize, int maxSize)
 {
 	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = 2; ksize <= 2; ksize++)
+	for (long ksize = initSize; ksize <= maxSize; ksize++)
 	{
-		//TODO quick test
-		//printf("ksize: %d\n", ksize);
+		printf("omp centers test -- ksize: %d\n", ksize);
 		int iter = 0;
 		mallocSoA(&kCenters, ksize);
 		initK(ksize);				// K-centers = first points in data 
 		bool kAssociationChangedFlag = true;
 		do {
-			//printf("iter %d\n", iter + 1);
 			kAssociationChangedFlag = reCluster(ksize);
 		} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
 
-
-															  //TODO: getKQuality();
-															  //TODO1: for every cluster - get diameter
-
-
-
-															  //TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
-
-
-															  //if (kQuality < QM)
-		if (true)
-		{
-			//quicktest
-			printf("kCenters:\n");
-			for (int i = 0; i < ksize; i++)
-				printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
-			//TODO: print to file
-			break;
-		}
+		printArrTestPrint(MASTER, kCenters->x, ksize, "ompMaster - kCentersX");
+		printArrTestPrint(MASTER, kCenters->y, ksize, "ompMaster - kCentersY");
+		printf("No QM test for ompGoTest\n\n");
 
 	}
 

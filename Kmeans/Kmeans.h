@@ -16,7 +16,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 //cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
 void readPointsFromFile();
-void ompGo();
+void ompGoTest(int initSize, int maxSize);
 
 
 bool ompReduceCudaFlags(bool* flags, int size);
