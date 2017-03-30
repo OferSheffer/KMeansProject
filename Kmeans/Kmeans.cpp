@@ -63,14 +63,15 @@ int main(int argc, char *argv[])
 	float* kDiameters;
 	if (myid == MASTER)
 	{
-		//ompGoTest(int initSize, int maxSize)
-		ompGoTest(5, 5);
-		
-		//TODO: cudaGo();
+				
 		//for (long ksize = 2; ksize <= MAX; ksize++)
-		for (long ksize = 5; ksize <= 5; ksize++)
+		for (long ksize = 2; ksize <= MAX; ksize++)
 		{
-			printf("ksize: %d\n", ksize);
+#ifdef _DEBUG2
+			//ompGoTest(int initSize, int maxSize)
+			ompGoTest(ksize, ksize);
+#endif
+			printf("Full algorithm -- on ksize: %d\n***********************\n", ksize);
 			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 			mallocSoA(&kCenters, ksize);
 			kDiameters = (float*)malloc(ksize * sizeof(float));
@@ -103,10 +104,18 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "kCentersWithCuda failed!");
 				return 1;
 			}
+#ifdef _DEBUG3
+			//TEST kDiameters 
+			printf("\nkDiameters work complete:\n"
+				"------------------------\n"); fflush(stdout);
+			printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
+#endif
 
-
-
-			////TODO2: sum for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
+			//TODO: bottleneck here
+//#ifdef _DEBUG4
+//			printf("\nQuality work starts:\n"); fflush(stdout);
+//#endif
+			//sum kQuality for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
 			float kQuality = 0;
 			#pragma omp parallel for reduction(+:kQuality)
 			for (int i = 0; i < ksize; i++)
@@ -117,17 +126,25 @@ int main(int argc, char *argv[])
 				}
 			}
 
+#ifdef _DEBUG4
+			//TEST kDiameters 
+			printf("\nQuality work complete:   ***  %f  *** Smaller than %f?  * %d *\n\n*********************************************\n", kQuality, QM, (kQuality <= QM));  fflush(stdout);
+#endif
 
-			////if (kQuality < QM)
-			//if (true)
-			//{
-			//	//quicktest
-			//	printf("kCenters:\n");
-			//	for (int i = 0; i < ksize; i++)
-			//		printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
-			//	//TODO: print to file
-			//	break;
-			//}
+			if (kQuality <= QM)
+			{
+				//TODO: let the slaves know the job is done
+				//TODO: print to file
+				
+				
+				cudaStatus = cudaDeviceReset();
+				if (cudaStatus != cudaSuccess) {
+					fprintf(stderr, "cudaDeviceReset failed!");
+					return 1;
+				}
+				
+				break;
+			}
 
 
 			cudaStatus = cudaDeviceReset();
@@ -140,27 +157,41 @@ int main(int argc, char *argv[])
 	else 
 	{
 		// slaves
-		long ksize;
-		MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
-		mallocSoA(&kCenters, ksize);
-		kDiameters = (float*)malloc(ksize * sizeof(float));
-		MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
+		long ksize=1;
+		while(true)
+		{
+			cudaError_t cudaStatus;
+			if (ksize == 0)
+			{
+				cudaStatus = cudaDeviceReset();
+				if (cudaStatus != cudaSuccess) {
+					fprintf(stderr, "cudaDeviceReset failed!");
+					return 1;
+				}
+				//Slave stops working
+				break;
+			}
+
+			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
+			mallocSoA(&kCenters, ksize);
+			kDiameters = (float*)malloc(ksize * sizeof(float));
+			MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
 
 
-		//TODO: getKQuality();
-		cudaError_t cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "kCentersWithCuda failed!");
-			return 1;
-		}
+			//getKQuality();
+			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "kCentersWithCuda failed!");
+				return 1;
+			}
 
+		
+			cudaStatus = cudaDeviceReset();
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaDeviceReset failed!");
+				return 1;
+			}
 
-
-
-		cudaStatus = cudaDeviceReset();
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceReset failed!");
-			return 1;
 		}
 	}
 	

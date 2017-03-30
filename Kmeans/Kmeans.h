@@ -5,6 +5,12 @@
 
 #pragma warning(disable:4996)
 
+//#define _DEBUG0 // temp values
+//#define _DEBUG1 // low level progress
+//#define _DEBUG2 // omp k-centers results -- for comparison
+//#define _DEBUG3 // mid level values test
+#define _DEBUG4 // mid level values test
+
 // SoA: reduce load/store operations
 typedef struct _xyArrays {
 	float *x;

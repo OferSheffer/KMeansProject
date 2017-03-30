@@ -166,21 +166,12 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	cudaError_t cudaStatus;
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 
-	// data size protection code
-	/*
-	if (N % (THREADS_PER_BLOCK * NO_BLOCKS) != 0) {
-	fprintf(stderr, "reClusterWithCuda launch failed:\n"
-	"Array size (%d) modulo Total threads (%d) != 0.\n"
-	"Try changing number of threads.\n", N, (THREADS_PER_BLOCK * NO_BLOCKS));
-	goto Error;
-	} */
 	initK(ksize);				// K-centers = first points in data (on host)
 	int iter = 0;
 	size_t SharedMemBytes = N * sizeof(bool); // shared memory for flag work
 	bool flag;
 
-	// memory init block
-	//{
+	// memory initializations
 	size_t nDataBytes = N * sizeof(*xya);  // N x 2 x sizeof(float)
 	size_t nKCenterBytes = ksize * sizeof(*kCenters);
 	bool	 *h_kaFlags;
@@ -225,7 +216,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		fprintf(stderr, "cudaMemset failed!\n");
 		goto Error;
 	}
-	//}
 
 	// *** phase 1 ***
 	do {
@@ -265,11 +255,10 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	//cudaMemcpy(kCenters->y, h_kCenters.y, nKCenterBytes / 2, cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
 	//TODO quick test
-	printf("k-complete:\n");
-	for (int i = 0; i < ksize; i++)
-	{
-		printf("%d, %8.3f, %8.3f\n", i, kCenters->x[i], kCenters->y[i]);
-	}
+	printf("k-complete calculated centers are:\n");
+	printArrTestPrint(MASTER, kCenters->x, ksize, "ompMaster - kCentersX");
+	printArrTestPrint(MASTER, kCenters->y, ksize, "ompMaster - kCentersY");
+	printf("********************************************************\n\n");
 	
 
 	free(h_kaFlags);
@@ -330,8 +319,10 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
+#ifdef _DEBUG1
 		//TEST print
 		printf("%d, FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
+#endif
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError(); 
 		if (cudaStatus != cudaSuccess) {
@@ -342,8 +333,10 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
+#ifdef _DEBUG0
 		//TEST kDiameters 
 		printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
+#endif
 	}
 	
 	//TODO: use MASTER GPU to asynchronously run first job
@@ -393,11 +386,14 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			resultsCounter++;
 
-			//TEST kDiameters 
-			printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
-
-			//TODO:
 			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
+
+#ifdef _DEBUG0
+			//TEST kDiameters 
+			printf("\nMaster values after MaxVectors with source %d !!\n", status.MPI_SOURCE);
+			printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
+			printf("***********************************************\n\n");
+#endif
 
 			// if needed, send next job and increase x
 			if (x < NO_JOBS)
@@ -424,9 +420,10 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 			if (masterTag == NEW_JOB)
 			{
+#ifdef _DEBUG1
 				//TEST print
 				printf("%d, jobForBlocks %2d, %2d\n", myid, jobForBlocks[0], jobForBlocks[1]); fflush(stdout);
-
+#endif
 				kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobForBlocks[0], jobForBlocks[1]);
 				cudaStatus = cudaGetLastError();
 				if (cudaStatus != cudaSuccess) {
@@ -436,10 +433,10 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 
 				cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-
+#ifdef _DEBUG0
 				//TEST kDiameters 
 				printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
-				
+#endif
 
 				MPI_Send(kDiameters, ksize, MPI_FLOAT, 0, myid, MPI_COMM_WORLD);	   // report your rank to master in tag (not necessary)
 			}
@@ -449,11 +446,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			}
 		}
 	}
-
-	//TEST kDiameters 
-	printf("\nkDiameters work complete:\n"
-	         "------------------------\n"); fflush(stdout);
-	printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 
 
 Error:
