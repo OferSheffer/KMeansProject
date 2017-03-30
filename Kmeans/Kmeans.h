@@ -46,9 +46,6 @@ void initK(long ksize);
 void prepK(int* ompCntPArr, long ksize);
 void initClusterAssociationArrays();
 void getNewPointKCenterAssociation(long i, int ksize);
-void getNewPointKCenterAssociationXYBarrier(long i, int ksize);
-void loopBcast(long size);
-void serialSendRecv(long size);
 int* initJobArray(int NO_BLOCKS, int fact);
 
 void printArrTestPrint(int myid, float* arr, int size, const char* arrName);
