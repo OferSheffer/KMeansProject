@@ -8,7 +8,8 @@
 #define MASTER 0
 #define THREADS_PER_BLOCK 1024
 
-//TODO: consider adding a delimiter (testfile: ',' -- presentation: ' ')
+//TODO: review different ways to get better messages: currently works up to 40000 on my laptop. 
+//TODO: note: different error messages between 50000 and 100000
 
 long  N;			// number of points. e.g. 300000
 int   MAX;			// maximum # of clusters to find. e.g. 300
@@ -35,7 +36,11 @@ int main(int argc, char *argv[])
 
 	if (myid == MASTER)
 	{	
+#ifdef _DEBUGV
+		printf(FILE_NAME"\n"); FF;
+#endif
 		readPointsFromFile();			 // init xya with data
+		printf("N=%ld, Max=%d, LIMIT=%d, QM=%f\n\n", N, MAX,LIMIT,QM); FF;
 		MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 	}
 	else
@@ -250,7 +255,7 @@ void ompGoTest(int initSize, int maxSize)
 	//for (long ksize = 2; ksize <= MAX; ksize++)
 	for (long ksize = initSize; ksize <= maxSize; ksize++)
 	{
-		printf("omp centers test -- ksize: %d\n", ksize);
+		printf("omp centers test -- ksize: %d\n", ksize); FF;
 		int iter = 0;
 		mallocSoA(&kCenters, ksize);
 		initK(ksize);				// K-centers = first points in data 
@@ -261,7 +266,7 @@ void ompGoTest(int initSize, int maxSize)
 
 		printArrTestPrint(MASTER, kCenters->x, ksize, "ompMaster - kCentersX");
 		printArrTestPrint(MASTER, kCenters->y, ksize, "ompMaster - kCentersY");
-		printf("No QM test for ompGoTest\n\n");
+		printf("No QM test for ompGoTest\n\n"); FF;
 
 	}
 
@@ -451,17 +456,6 @@ void ompMaxVectors(float** kDiameters, float* kDiametersTempAnswer, int ksize)
 	}
 }
 
-
-
-
-
-
-
-
-
-
-
-
 void mallocSoA(xyArrays** soa, long size)
 {
 	*soa = (xyArrays*)malloc(sizeof(xyArrays));
@@ -569,13 +563,6 @@ void printArrTestPrint(int myid, float* arr, int size, const char* arrName)
 	}
 }
 
-
-
-//TODO quick test
-//for (int i = 0; i < ksize; i++)
-//{
-//	printf("%d, %6.3f, %6.3f\n", i, kCenters->x[i], kCenters->y[i]);
-//}
 
 //TODO quick test
 //for (int i = 0; i < 10; i++)
