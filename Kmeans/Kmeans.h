@@ -14,7 +14,7 @@
 #define FF fflush(stdout)
 
 //#define _RUNAFEKA
-#define _WEAKGPU
+//#define _WEAKGPU
 
 //#define _DEBUGV		// verbose
 #define _DEBUGT
@@ -23,7 +23,7 @@
 //#define _DEBUG2 // low level progress
 //#define _DEBUG3 // omp k-centers results -- for comparison
 //#define _DEBUG4 // diameters final for ksize
-#define _DEBUG5 // QM values test
+//#define _DEBUG5 // QM values test
 
 #ifndef INFINITY
 #define INFINITY 1000000000000000
