@@ -12,13 +12,21 @@
 #pragma warning(disable:4996)
 
 #define FF fflush(stdout)
+
+//#define _RUNAFEKA
+
 //#define _DEBUGV		// verbose
 #define _DEBUGT
 //#define _DEBUG1 // temp values
 //#define _DEBUG2 // low level progress
 //#define _DEBUG3 // omp k-centers results -- for comparison
 //#define _DEBUG4 // diameters final for ksize
-//#define _DEBUG5 // mid level values test
+//#define _DEBUG5 // QM values test
+
+#ifndef INFINITY
+#define INFINITY 1000000000000000
+#endif
+
 
 // SoA: reduce load/store operations
 typedef struct _xyArrays {

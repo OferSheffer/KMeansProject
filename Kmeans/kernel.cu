@@ -26,7 +26,9 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 	{
 		dShared_kaFlags[tid] = false; // no changes yet
 		prevPka = pka[tid]; // save associated cluster idx
+
 		float minSquareDist = INFINITY;
+
 		float curSquareDist;
 		for (int idx = 0; idx < ksize; idx++)
 		{

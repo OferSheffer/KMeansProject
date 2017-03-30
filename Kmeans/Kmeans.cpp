@@ -24,6 +24,7 @@ int numprocs, myid;
 
 int main(int argc, char *argv[])
 {
+
 	//int res;
 	double start, finish;
 
@@ -355,10 +356,11 @@ bool reCluster(int ksize)
 		kCenters->y[idx] /= count;
 	}
 
+#ifndef _RUNAFEKA
 	free(ompSumXArr);
 	free(ompSumYArr);
 	free(ompCntPArr);
-
+#endif
 
 	return kAssociationChangedFlag;
 }
@@ -431,10 +433,11 @@ void ompRecenterFromCuda(int ksize)
 		kCenters->x[idx] /= count;
 		kCenters->y[idx] /= count;
 	}
-
+#ifndef _RUNAFEKA
 	free(ompSumXArr);
 	free(ompSumYArr);
 	free(ompCntPArr);
+#endif
 
 }
 
@@ -502,7 +505,9 @@ void prepK(int* ompCntPArr, long ksize)
 
 void getNewPointKCenterAssociation(long i, int ksize)
 {
+
 	float minSquareDist = INFINITY;
+
 	float curSquareDist;
 	for (long idx = 0; idx < ksize; idx++)
 	{
