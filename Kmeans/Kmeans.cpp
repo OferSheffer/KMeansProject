@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
 			{
 				for (int j = ksize-1; j > i; j--)
 				{
-					kQuality += kDiameters[i] / (powf(kCenters->x[i] - kCenters->x[j], 2));
+					kQuality += kDiameters[i] / sqrtf((powf(kCenters->x[i] - kCenters->x[j], 2)) + (powf(kCenters->y[i] - kCenters->y[j], 2)));
 				}
 			}
 
