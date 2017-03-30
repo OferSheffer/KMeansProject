@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
 			//ompGoTest(int initSize, int maxSize)
 			ompGoTest(ksize, ksize);
 #endif
-			printf("Full algorithm -- on ksize: %d\n***********************\n", ksize);
+			printf("Full algorithm -- on ksize: %d\n***********************\n", ksize); fflush(stdout);
 			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 			mallocSoA(&kCenters, ksize);
 			kDiameters = (float*)malloc(ksize * sizeof(float));
@@ -87,8 +87,8 @@ int main(int argc, char *argv[])
 				return 1;
 			}
 
-			//TODO: getKQuality();
-			//TODO step1: for every cluster - get diameter
+			//getKQuality();
+			//step1: for every cluster - get diameter
 			//concept: 1) Master sends point arrays as well as pka array to slaves
 			//master and slaves use a cuda kernel (maxSquareDistances) with a block of 1024 threads (less if it takes too long)
 			//kernel receives two sections of the array and each thread of the 1024 registers its maximum
@@ -111,10 +111,6 @@ int main(int argc, char *argv[])
 			printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 #endif
 
-			//TODO: bottleneck here
-//#ifdef _DEBUG4
-//			printf("\nQuality work starts:\n"); fflush(stdout);
-//#endif
 			//sum kQuality for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
 			float kQuality = 0;
 			#pragma omp parallel for reduction(+:kQuality)
@@ -134,6 +130,8 @@ int main(int argc, char *argv[])
 			if (kQuality <= QM)
 			{
 				//TODO: let the slaves know the job is done
+				ksize = 0;
+				MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 				//TODO: print to file
 				
 				
