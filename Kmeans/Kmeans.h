@@ -14,6 +14,7 @@
 #define FF fflush(stdout)
 
 //#define _RUNAFEKA
+//#define _WEAKGPU
 
 //#define _DEBUGV		// verbose
 #define _DEBUGT

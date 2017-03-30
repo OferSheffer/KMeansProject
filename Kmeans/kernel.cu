@@ -11,9 +11,14 @@
 // Each thread in charge of THREAD_BLOCK_SIZE contigeous indices
 
 #define MASTER 0
-#define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
 #define NEW_JOB 0
 #define STOP_WORKING 1
+
+#ifndef _WEAKGPU
+#define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
+#else
+#define THREADS_PER_BLOCK 128	// weak gpu
+#endif // not _WEAKGPU
 
 __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, bool* d_kaFlags, const int size)
 {
