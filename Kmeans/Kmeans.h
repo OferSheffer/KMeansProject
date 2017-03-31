@@ -11,8 +11,8 @@
 
 #pragma warning(disable:4996)
 
-#define FF fflush(stdout)
-#define DDD printf("****Dammit!****\n"); FF;
+#define FF fflush(0)
+#define DDD { printf("****Dammit!****\n"); FF; }
 
 //#define _RUNAFEKA
 //#define _WEAKGPU

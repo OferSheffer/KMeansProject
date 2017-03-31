@@ -90,9 +90,13 @@ int main(int argc, char *argv[])
 			//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
 			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "kCentersWithCuda failed!");
+				fprintf(stderr, "kCentersWithCuda failed!"); FF;
+				freeSoA(xya);
+				free(pka);
+				free(kDiameters);
+				MPI_Finalize();
 				return 1;
-			} 
+			}
 #ifdef _DEBUGV
 			printf("k-complete calculated centers are:\n");
 			printArrTestPrint(MASTER, kCenters->x, ksize, "ompMaster - kCentersX");
@@ -111,15 +115,17 @@ int main(int argc, char *argv[])
 
 			// *** kDiametersWithCuda ***
 			MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
+			
 			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "kCentersWithCuda failed!");
 				return 1;
 			}
+			DDD
 #ifdef _DEBUG4
 			//TEST kDiameters 
 			printf("\nkDiameters work complete:\n"
-				"------------------------\n"); fflush(stdout);
+				"------------------------\n"); FF;
 			printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 #endif
 
