@@ -12,13 +12,14 @@
 #pragma warning(disable:4996)
 
 #define FF fflush(0)
-#define DDD { printf("****Dammit!****\n"); FF; }
+#define DDD { printf("****DDD!****\n"); FF; }
 
 //#define _RUNAFEKA
 //#define _WEAKGPU
 
 //#define _DEBUGV		// verbose
-#define _DEBUGT
+#define _DEBUGT			// time output
+#define _DEBUGT2		// time centersWithCuda operation
 //#define _DEBUGSM // debug kernel shared memory assignments
 //#define _DEBUG1 // temp values
 //#define _DEBUG2 // low level progress

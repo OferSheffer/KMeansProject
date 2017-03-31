@@ -222,13 +222,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		
 		cudaStatus = cudaMemcpy(h_kCenters.x, kCenters->x, nKCenterBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		cudaStatus = cudaMemcpy(h_kCenters.y, kCenters->y, nKCenterBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-		//TEST KCenters per iteration
-		/*
-		for (int i = 0; i < ksize; i++)
-		{
-			printf("%d: k%d, %8.3f, %8.3f\n", iter+1, i, kCenters->x[i], kCenters->y[i]);
-		}
-		*/
 
 #ifdef _DEBUGSM
 		printf("__global__ reClusterWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
@@ -259,13 +252,11 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 		
 		//TODO: consider replacing with a CUDA implementation
 		ompRecenterFromCuda(ksize); 
-		printf("iter: %d\n", iter + 1); FF;
+#ifdef _DEBUGV
+		printf("kCentersWithCuda on %d, iter: %d\n", ksize, iter + 1); FF;
+#endif
 	} while (++iter < LIMIT && flag);  // association changes: need to re-cluster
 
-	//TODO: use if using CUDA to reCenter
-	//cudaMemcpy(kCenters->x, h_kCenters.x, nKCenterBytes / 2, cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-	//cudaMemcpy(kCenters->y, h_kCenters.y, nKCenterBytes / 2, cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-	printf("Loop finished\n"); FF;
 	free(h_kaFlags);
 
 Error:
@@ -277,7 +268,6 @@ Error:
 	cudaFree(d_kCenters);
 	cudaFree(d_pka);
 	cudaFree(d_kaFlags);
-	printf("Returning\n"); FF;
 
 	return cudaStatus;
 }

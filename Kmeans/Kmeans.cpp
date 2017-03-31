@@ -13,9 +13,6 @@
 #define THREADS_PER_BLOCK 128	// weak gpu
 #endif // not _WEAKGPU
 
-//TODO: review different ways to get better messages: currently works up to 40000 on my laptop. 
-//TODO: note: different error messages between 50000 and 100000
-
 long  N;			// number of points. e.g. 300000
 int   MAX;			// maximum # of clusters to find. e.g. 300
 int	  LIMIT;		// maximum # of iterations for K-means algorithm. e.g. 2000
@@ -23,7 +20,7 @@ float QM;			// quality measure to stop. e.g. 17
 
 xyArrays *xya;		// SoA of the data
 xyArrays *kCenters;	// SoA of k-mean vertices
-int *pka;			// array to associate xya points with their closest cluster
+int *pka;			// pka (points' cluster association) : array to associate xya points with their closest cluster
 float kQuality;		// quality of current cluster configuration;
 
 int numprocs, myid;
@@ -32,7 +29,7 @@ int main(int argc, char *argv[])
 {
 
 	//int res;
-	double start, finish;
+	double start, finish, kcstart, kcfinish;
 
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -87,6 +84,9 @@ int main(int argc, char *argv[])
 			size_t nBytes = sizeof(xya);
 			
 			// *** kCentersWithCuda ***
+#ifdef _DEBUGT2
+			kcstart = omp_get_wtime();
+#endif
 			//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
 			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
 			if (cudaStatus != cudaSuccess) {
@@ -97,6 +97,11 @@ int main(int argc, char *argv[])
 				MPI_Finalize();
 				return 1;
 			}
+#ifdef _DEBUGT2
+			kcfinish = omp_get_wtime();
+			if (myid == MASTER) { printf("kCenters %d run-time: %f\n", ksize, kcfinish - kcstart); FF; }
+#endif
+
 #ifdef _DEBUGV
 			printf("k-complete calculated centers are:\n");
 			printArrTestPrint(MASTER, kCenters->x, ksize, "ompMaster - kCentersX");
@@ -112,8 +117,15 @@ int main(int argc, char *argv[])
 			//master dynamically sends computers which block to compare with which block
 			//slaves send back the indices that gathe data to master to combine all 
 
-
 			// *** kDiametersWithCuda ***
+			/*
+			  Core concept:
+			  -------------
+			  1) Break data into blocks of size THREADS_PER_BLOCK. e.g. 100,000/1024=>10 Blocks (Bn for short)
+			  2) Run kernel O(Bn^2) on 2 block permutations to receive all possible distances (reduceMax to get diameters)
+			  Main benefit:
+			  Instead of O(N^2), we get O(Bn^2). Adding dynamic MPI based scheduling increases performance further.
+			*/
 			MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
 			
 			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
@@ -121,7 +133,7 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "kCentersWithCuda failed!");
 				return 1;
 			}
-			DDD
+			
 #ifdef _DEBUG4
 			//TEST kDiameters 
 			printf("\nkDiameters work complete:\n"
@@ -251,7 +263,7 @@ void readPointsFromFile()
 
 void initClusterAssociationArrays()
 {
-	//TODO: consider renaming pka -> pointClusterAssociation
+	/* pka -> pointClusterAssociation */
 	pka = (int*)malloc(N * sizeof(int));
 
 	for (long i = 0; i < N; i++)
