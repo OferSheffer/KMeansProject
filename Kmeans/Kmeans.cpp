@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 
-#ifdef _DEBUGT
+#ifdef _TIME
 	start = omp_get_wtime();
 #endif
 	
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 			size_t nBytes = sizeof(xya);
 			
 			// *** kCentersWithCuda ***
-#ifdef _DEBUGT2
+#ifdef _PROF2
 			kcstart = omp_get_wtime();
 #endif
 			//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
 				MPI_Finalize();
 				return 1;
 			}
-#ifdef _DEBUGT2
+#ifdef _PROF2
 			kcfinish = omp_get_wtime();
 			if (myid == MASTER) { printf("kCenters %d run-time: %f\n", ksize, kcfinish - kcstart); FF; }
 #endif
@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
 
 			if (kQuality <= QM)
 			{
-#ifdef _DEBUGT
+#ifdef _TIME
 				finish = omp_get_wtime();
 #endif
 				//print to file
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
 	printf("Process %d signing off.\n", myid); FF;
 #endif
 
-#ifdef _DEBUGT
+#ifdef _TIME
 	if (myid == MASTER) { printf("run-time: %f\n", finish - start); FF; }
 #endif
 	freeSoA(xya);

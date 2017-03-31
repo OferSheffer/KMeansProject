@@ -18,8 +18,13 @@
 //#define _WEAKGPU
 
 //#define _DEBUGV		// verbose
-#define _DEBUGT			// time output
-#define _DEBUGT2		// time centersWithCuda operation
+#define _TIME			// time output
+//#define _PROF2		// time centersWithCuda operation (< 2 sec)
+#define _PROF3			// time diametersCuda kernel operation on 0,0 (0.008*5050=40sec)
+//#define _PROF4		// time maxVector ( < 2 sec)
+//#define _PROF5			// time slaves recieve ( < 2 sec)
+
+
 //#define _DEBUGSM // debug kernel shared memory assignments
 //#define _DEBUG1 // temp values
 //#define _DEBUG2 // low level progress

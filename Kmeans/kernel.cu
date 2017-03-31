@@ -276,6 +276,9 @@ Error:
 cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs)
 {
 	cudaError_t cudaStatus;
+	double diamKerStart, diamKerFinish,
+		maxVecStart, maxVecFinish, maxVecRuntime = 0,
+		slaveRecvStart, slaveRecvFinish, slaveRecvRuntime = 0;
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	xyArrays *d_xya;
 	int	 *d_pka;
@@ -326,6 +329,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #ifdef _DEBUGSM
 		printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
 #endif
+#ifdef _PROF3
+		diamKerStart = omp_get_wtime();
+#endif
 		//kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError(); 
@@ -337,7 +343,10 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 
 		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-
+#ifdef _PROF3
+		diamKerFinish = omp_get_wtime();
+		if (myid == MASTER) { printf("kCenters %d run-time: %f\n", ksize, diamKerFinish - diamKerStart); FF; }
+#endif
 #ifdef _DEBUG1
 		//TEST kDiameters 
 		printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
@@ -390,8 +399,15 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 			MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			resultsCounter++;
-
+#ifdef _PROF4
+			maxVecStart = omp_get_wtime();
+#endif
 			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
+#ifdef _PROF4
+			maxVecFinish = omp_get_wtime();
+			maxVecRuntime += maxVecFinish - maxVecStart;
+			if (myid == MASTER) { printf("ompMaxVectors %d, iter: %d run-time: %f\n", ksize, resultsCounter, maxVecRuntime); FF; }
+#endif
 
 #ifdef _DEBUG1
 			//TEST kDiameters 
@@ -420,9 +436,16 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		int jobForBlocks[2];
 		while (masterTag == NEW_JOB)
 		{
+#ifdef _PROF5
+			slaveRecvStart = omp_get_wtime();
+#endif
 			MPI_Recv(jobForBlocks, 2, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			masterTag = status.MPI_TAG;
-
+#ifdef _PROF5
+			slaveRecvFinish = omp_get_wtime();
+			slaveRecvRuntime += slaveRecvFinish - slaveRecvStart;
+			printf("id: %d\tslaveRecv %d,%d run-time: %f\n", myid, jobForBlocks[0], jobForBlocks[1], slaveRecvRuntime); FF;
+#endif
 			if (masterTag == NEW_JOB)
 			{
 #ifdef _DEBUG2
