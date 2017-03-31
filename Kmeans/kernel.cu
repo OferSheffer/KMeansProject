@@ -276,9 +276,7 @@ Error:
 cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs)
 {
 	cudaError_t cudaStatus;
-	double diamKerStart, diamKerFinish,
-		maxVecStart, maxVecFinish, maxVecRuntime = 0,
-		slaveRecvStart, slaveRecvFinish, slaveRecvRuntime = 0;
+	double diamKerStart, diamKerFinish;
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	xyArrays *d_xya;
 	int	 *d_pka;
@@ -399,15 +397,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 			MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			resultsCounter++;
-#ifdef _PROF4
-			maxVecStart = omp_get_wtime();
-#endif
+
 			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
-#ifdef _PROF4
-			maxVecFinish = omp_get_wtime();
-			maxVecRuntime += maxVecFinish - maxVecStart;
-			if (myid == MASTER) { printf("ompMaxVectors %d, iter: %d run-time: %f\n", ksize, resultsCounter, maxVecRuntime); FF; }
-#endif
+
 
 #ifdef _DEBUG1
 			//TEST kDiameters 
@@ -436,16 +428,10 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		int jobForBlocks[2];
 		while (masterTag == NEW_JOB)
 		{
-#ifdef _PROF5
-			slaveRecvStart = omp_get_wtime();
-#endif
+
 			MPI_Recv(jobForBlocks, 2, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			masterTag = status.MPI_TAG;
-#ifdef _PROF5
-			slaveRecvFinish = omp_get_wtime();
-			slaveRecvRuntime += slaveRecvFinish - slaveRecvStart;
-			printf("id: %d\tslaveRecv %d,%d run-time: %f\n", myid, jobForBlocks[0], jobForBlocks[1], slaveRecvRuntime); FF;
-#endif
+
 			if (masterTag == NEW_JOB)
 			{
 #ifdef _DEBUG2

@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 {
 
 	//int res;
-	double start, finish, kcstart, kcfinish;
+	double start, finish;
 
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -69,10 +69,6 @@ int main(int argc, char *argv[])
 		//for (long ksize = 2; ksize <= MAX; ksize++)
 		for (long ksize = 2; ksize <= MAX; ksize++)
 		{
-#ifdef _DEBUG3
-			//ompGoTest(int initSize, int maxSize)
-			ompGoTest(ksize, ksize);
-#endif
 #ifdef _DEBUGV
 			printf("Full algorithm -- on ksize: %d\n***********************\n", ksize); fflush(stdout);
 #endif
@@ -84,10 +80,6 @@ int main(int argc, char *argv[])
 			size_t nBytes = sizeof(xya);
 			
 			// *** kCentersWithCuda ***
-#ifdef _PROF2
-			kcstart = omp_get_wtime();
-#endif
-			//cudaError_t cudaStatus = kCentersWithCuda(hist, &(myLargeArr[MY_ARR_SIZE / 2]), MY_ARR_SIZE / 2, VALUES_RANGE);
 			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "kCentersWithCuda failed!"); FF;
@@ -97,10 +89,6 @@ int main(int argc, char *argv[])
 				MPI_Finalize();
 				return 1;
 			}
-#ifdef _PROF2
-			kcfinish = omp_get_wtime();
-			if (myid == MASTER) { printf("kCenters %d run-time: %f\n", ksize, kcfinish - kcstart); FF; }
-#endif
 
 #ifdef _DEBUGV
 			printf("k-complete calculated centers are:\n");
@@ -272,31 +260,6 @@ void initClusterAssociationArrays()
 	}
 }
 
-void ompGoTest(int initSize, int maxSize)
-{
-	//for (long ksize = 2; ksize <= MAX; ksize++)
-	for (long ksize = initSize; ksize <= maxSize; ksize++)
-	{
-		printf("omp centers test -- ksize: %d\n", ksize); FF;
-		int iter = 0;
-		mallocSoA(&kCenters, ksize);
-		initK(ksize);				// K-centers = first points in data 
-		bool kAssociationChangedFlag = true;
-		do {
-			kAssociationChangedFlag = reCluster(ksize);
-		} while (++iter < LIMIT && kAssociationChangedFlag);  // association changes: need to re-cluster
-
-		printArrTestPrint(MASTER, kCenters->x, ksize, "ompMaster - kCentersX");
-		printArrTestPrint(MASTER, kCenters->y, ksize, "ompMaster - kCentersY");
-		printf("No QM test for ompGoTest\n\n"); FF;
-
-	}
-
-	freeSoA(kCenters);
-}
-
-
-
 
 
 
@@ -314,83 +277,6 @@ void populateSoA(FILE* fp)
 }
 
 
-bool reCluster(int ksize)
-{
-	bool kAssociationChangedFlag = false;
-
-	// for every point: save idx where min(distance from k[idx])
-	#pragma omp parallel for reduction(|:kAssociationChangedFlag)
-	for (long i = 0; i < N; i++)
-	{
-		int prevPka = pka[i];  // save associated cluster idx
-		getNewPointKCenterAssociation(i, ksize);
-		if (pka[i] != prevPka)
-		{
-			kAssociationChangedFlag = true;
-		}
-	}
-
-	// reCenter
-	// re-calculate cluster centers:
-	// *****************************
-	/*
-	each thread given pseudo-private 1D arrays of size:  threads# x k#
-	e.g. ksize = 3, threads = 4:
-	step 1:
-	indices 0,4,8 will be accessed by thread 0: e.g. [4] sum x that belongs to cluster 1
-	indices 1,5,9 will be accessed by thread 1
-
-	step 2: sum each row (e.g. row 0) to get totals of k[0]
-	i.e. x_tot, y_tot, count_tot
-	step 3: divide x_tot,y_tot by count_tot for new k[0] center value.
-	*/
-
-	float* ompSumXArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
-	float* ompSumYArr = (float*)calloc(NO_OMP_THREADS * ksize, sizeof(float));
-	int*   ompCntPArr = (int*)  calloc(NO_OMP_THREADS * ksize, sizeof(int));
-
-	// step 1:
-	#pragma omp parallel for num_threads(NO_OMP_THREADS) // TODO: scheduling?
-	//for (long i = 0; i < N; i++)
-	for (int i = 0; i < N; i++)
-	{
-		int ompArrIdx = pka[i] * NO_OMP_THREADS + omp_get_thread_num();  // row: pka[i]*NO_OMP_THREADS, col: thread id
-		ompCntPArr[ompArrIdx]++;
-		ompSumXArr[ompArrIdx] += xya->x[i];
-		ompSumYArr[ompArrIdx] += xya->y[i];
-	}
-
-	// steps 2+3:
-	//TODO: test prepK erases only what it should erase and keeps values it should not touch (clusters without points)
-	prepK(ompCntPArr, ksize);
-
-
-
-#pragma omp parallel for
-	for (int idx = 0; idx < ksize; idx++)
-	{
-		//TODO: gotta decide where in kCenters to change the value....
-
-		long count = 0;
-		for (int i = idx*NO_OMP_THREADS; i < idx*NO_OMP_THREADS + NO_OMP_THREADS; i++)
-		{
-			kCenters->x[idx] += ompSumXArr[i];
-			kCenters->y[idx] += ompSumYArr[i];
-			count += ompCntPArr[i];
-		}
-		//complete center calculation
-		kCenters->x[idx] /= count;
-		kCenters->y[idx] /= count;
-	}
-
-#ifndef _RUNAFEKA
-	free(ompSumXArr);
-	free(ompSumYArr);
-	free(ompCntPArr);
-#endif
-
-	return kAssociationChangedFlag;
-}
 
 bool ompReduceCudaFlags(bool* flags, int size)
 {

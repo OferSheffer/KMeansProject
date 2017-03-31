@@ -19,16 +19,13 @@
 
 //#define _DEBUGV		// verbose
 #define _TIME			// time output
-//#define _PROF2		// time centersWithCuda operation (< 2 sec)
 #define _PROF3			// time diametersCuda kernel operation on 0,0 (0.008*5050=40sec)
-//#define _PROF4		// time maxVector ( < 2 sec)
-//#define _PROF5			// time slaves recieve ( < 2 sec)
+
 
 
 //#define _DEBUGSM // debug kernel shared memory assignments
 //#define _DEBUG1 // temp values
 //#define _DEBUG2 // low level progress
-//#define _DEBUG3 // omp k-centers results -- for comparison
 //#define _DEBUG4 // diameters final for ksize
 //#define _DEBUG5 // QM values test
 
@@ -49,8 +46,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs);
 
 void readPointsFromFile();
-void ompGoTest(int initSize, int maxSize);
-
 
 bool ompReduceCudaFlags(bool* flags, int size);
 void ompRecenterFromCuda(int ksize);
@@ -58,8 +53,6 @@ void ompMaxVectors(float** kDiameters, float* kDiametersTempAnswer, int ksize);
 
 void populateSoA(FILE* fp);
 
-
-bool reCluster(int ksize);
 
 void mallocSoA(xyArrays** soa, long size);
 void freeSoA(xyArrays* soa);
