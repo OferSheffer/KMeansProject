@@ -49,20 +49,9 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 		{
 			dShared_kaFlags[ltid] = true;
 		}
-		// reduction for d_kaFlag
 		__syncthreads();
-		// do reduction in shared mem
-		// reduce(dShared_kaFlags);
-		// each thread loads one element from global to shared mem
 		
-#if 0
-		unsigned int i = blockIdx.x*(blockDim.x * 2) + threadIdx.x;
-		blockIdx.x * blockDim.x + threadIdx.x;
-
-		if (i < size) dShared_kaFlags[ltid] = dShared_kaFlags[i] | dShared_kaFlags[i + blockDim.x];
-		__syncthreads();
-#endif
-		// do reduction in shared mem
+		// reduction in shared mem
 		for (unsigned int s = blockDim.x / 2; s > 32; s >>= 1)
 		{
 			if (tid < s)
