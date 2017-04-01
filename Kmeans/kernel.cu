@@ -123,10 +123,9 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 		int myK = pka[tidA];
 
 		// OPTION A
-		if (ksize <= 3)
+		//if (ksize <= 3)
+		if (ksize <= 0)
 		{
-			
-
 			//TODO: consider load blancing/loop unrolling of some sort
 			// run kernel with a single block, use external block indices to syncronize operations
 			for (int tidO, threadBRunningIdx = 0; threadBRunningIdx < blockDim.x; threadBRunningIdx++)
@@ -147,6 +146,7 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 					}
 				}
 			}
+			AtomicMax(&(kDiameters[myK]), sqrtf(max));	// takes advantage of varying completion times (OptionA)
 		}
 		else
 		{
@@ -170,9 +170,90 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 				}
 
 			}
-		}
 
-		AtomicMax(&(kDiameters[myK]), sqrtf(max));	// takes advantage of varying completion times
+
+			// reduction in shared mem (we finished using it and can use it for another purpose)
+			//TEST for ksize=4
+			switch (myK)
+			{
+			case 0:
+				dShared_SquaredXYAB[threadIdx.x*ksize + 0] = max;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 1] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 2] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 3] = 0;
+				break;
+			case 1:
+				dShared_SquaredXYAB[threadIdx.x*ksize + 0] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 1] = max;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 2] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 3] = 0;
+				break;
+			case 2:
+				dShared_SquaredXYAB[threadIdx.x*ksize + 0] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 1] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 2] = max;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 3] = 0;
+				break;
+			case 3:
+				dShared_SquaredXYAB[threadIdx.x*ksize + 0] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 1] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 2] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 3] = max;
+				break;
+			default:
+				// NOT SUPPORTED YET!
+				dShared_SquaredXYAB[threadIdx.x*ksize + 0] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 1] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 2] = 0;
+				dShared_SquaredXYAB[threadIdx.x*ksize + 3] = 0;
+				break;
+			}
+			__syncthreads();
+
+			int tid = threadIdx.x;
+			for (unsigned int s = blockDim.x / 2; s > 32; s >>= 1)
+			{
+				if (tid < s)
+				{
+					if (dShared_SquaredXYAB[tid + 0] < dShared_SquaredXYAB[tid + s + 0]) dShared_SquaredXYAB[tid + 0] = dShared_SquaredXYAB[tid + s + 0];
+					if (dShared_SquaredXYAB[tid + 1] < dShared_SquaredXYAB[tid + s + 1]) dShared_SquaredXYAB[tid + 1] = dShared_SquaredXYAB[tid + s + 1];
+					if (dShared_SquaredXYAB[tid + 2] < dShared_SquaredXYAB[tid + s + 2]) dShared_SquaredXYAB[tid + 2] = dShared_SquaredXYAB[tid + s + 2];
+					if (dShared_SquaredXYAB[tid + 3] < dShared_SquaredXYAB[tid + s + 3]) dShared_SquaredXYAB[tid + 3] = dShared_SquaredXYAB[tid + s + 3];
+				}
+				__syncthreads();
+			}
+			if (tid < 32) //unroll warp
+			{
+				if (dShared_SquaredXYAB[tid + 0] < dShared_SquaredXYAB[tid + 32 + 0]) dShared_SquaredXYAB[tid + 0] = dShared_SquaredXYAB[tid + 32 + 0];
+				if (dShared_SquaredXYAB[tid + 1] < dShared_SquaredXYAB[tid + 32 + 1]) dShared_SquaredXYAB[tid + 1] = dShared_SquaredXYAB[tid + 32 + 1];
+				if (dShared_SquaredXYAB[tid + 2] < dShared_SquaredXYAB[tid + 32 + 2]) dShared_SquaredXYAB[tid + 2] = dShared_SquaredXYAB[tid + 32 + 2];
+				if (dShared_SquaredXYAB[tid + 3] < dShared_SquaredXYAB[tid + 32 + 3]) dShared_SquaredXYAB[tid + 3] = dShared_SquaredXYAB[tid + 32 + 3];
+				if (dShared_SquaredXYAB[tid + 0] < dShared_SquaredXYAB[tid + 16 + 0]) dShared_SquaredXYAB[tid + 0] = dShared_SquaredXYAB[tid + 16 + 0];
+				if (dShared_SquaredXYAB[tid + 1] < dShared_SquaredXYAB[tid + 16 + 1]) dShared_SquaredXYAB[tid + 1] = dShared_SquaredXYAB[tid + 16 + 1];
+				if (dShared_SquaredXYAB[tid + 2] < dShared_SquaredXYAB[tid + 16 + 2]) dShared_SquaredXYAB[tid + 2] = dShared_SquaredXYAB[tid + 16 + 2];
+				if (dShared_SquaredXYAB[tid + 3] < dShared_SquaredXYAB[tid + 16 + 3]) dShared_SquaredXYAB[tid + 3] = dShared_SquaredXYAB[tid + 16 + 3];
+				if (dShared_SquaredXYAB[tid + 0] < dShared_SquaredXYAB[tid + 8 + 0]) dShared_SquaredXYAB[tid + 0] = dShared_SquaredXYAB[tid + 8 + 0];
+				if (dShared_SquaredXYAB[tid + 1] < dShared_SquaredXYAB[tid + 8 + 1]) dShared_SquaredXYAB[tid + 1] = dShared_SquaredXYAB[tid + 8 + 1];
+				if (dShared_SquaredXYAB[tid + 2] < dShared_SquaredXYAB[tid + 8 + 2]) dShared_SquaredXYAB[tid + 2] = dShared_SquaredXYAB[tid + 8 + 2];
+				if (dShared_SquaredXYAB[tid + 3] < dShared_SquaredXYAB[tid + 8 + 3]) dShared_SquaredXYAB[tid + 3] = dShared_SquaredXYAB[tid + 8 + 3];
+				if (dShared_SquaredXYAB[tid + 0] < dShared_SquaredXYAB[tid + 4 + 0]) dShared_SquaredXYAB[tid + 0] = dShared_SquaredXYAB[tid + 4 + 0];
+				if (dShared_SquaredXYAB[tid + 1] < dShared_SquaredXYAB[tid + 4 + 1]) dShared_SquaredXYAB[tid + 1] = dShared_SquaredXYAB[tid + 4 + 1];
+				if (dShared_SquaredXYAB[tid + 2] < dShared_SquaredXYAB[tid + 4 + 2]) dShared_SquaredXYAB[tid + 2] = dShared_SquaredXYAB[tid + 4 + 2];
+				if (dShared_SquaredXYAB[tid + 3] < dShared_SquaredXYAB[tid + 4 + 3]) dShared_SquaredXYAB[tid + 3] = dShared_SquaredXYAB[tid + 4 + 3];
+				if (dShared_SquaredXYAB[tid + 0] < dShared_SquaredXYAB[tid + 2 + 0]) dShared_SquaredXYAB[tid + 0] = dShared_SquaredXYAB[tid + 2 + 0];
+				if (dShared_SquaredXYAB[tid + 1] < dShared_SquaredXYAB[tid + 2 + 1]) dShared_SquaredXYAB[tid + 1] = dShared_SquaredXYAB[tid + 2 + 1];
+				if (dShared_SquaredXYAB[tid + 2] < dShared_SquaredXYAB[tid + 2 + 2]) dShared_SquaredXYAB[tid + 2] = dShared_SquaredXYAB[tid + 2 + 2];
+				if (dShared_SquaredXYAB[tid + 3] < dShared_SquaredXYAB[tid + 2 + 3]) dShared_SquaredXYAB[tid + 3] = dShared_SquaredXYAB[tid + 2 + 3];
+				if (dShared_SquaredXYAB[tid + 0] < dShared_SquaredXYAB[tid + 1 + 0]) dShared_SquaredXYAB[tid + 0] = dShared_SquaredXYAB[tid + 1 + 0];
+				if (dShared_SquaredXYAB[tid + 1] < dShared_SquaredXYAB[tid + 1 + 1]) dShared_SquaredXYAB[tid + 1] = dShared_SquaredXYAB[tid + 1 + 1];
+				if (dShared_SquaredXYAB[tid + 2] < dShared_SquaredXYAB[tid + 1 + 2]) dShared_SquaredXYAB[tid + 2] = dShared_SquaredXYAB[tid + 1 + 2];
+				if (dShared_SquaredXYAB[tid + 3] < dShared_SquaredXYAB[tid + 1 + 3]) dShared_SquaredXYAB[tid + 3] = dShared_SquaredXYAB[tid + 1 + 3];
+
+			}
+			if (tid < 4)
+				kDiameters[tid]= sqrtf(dShared_SquaredXYAB[tid]);	// sqrtf(max)
+		}
+		
 
 	}
 }
