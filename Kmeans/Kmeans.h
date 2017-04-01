@@ -20,7 +20,7 @@
 //#define _DEBUGV		// verbose
 #define _TIME			// time output
 #define _TIMEK		// time per ksize
-#define _PROF3		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
+//#define _PROF3		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
 						// 3 x 40sec ~= 120 --> look to improve this one for great changes
 						// Option B: balances work (threads finish symultaneously)
 						//		Halves the time for large K values.
