@@ -101,7 +101,8 @@ __device__ void AtomicMax(float * const address, const float value)
 __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays* d_xya, int* pka, const int size, const int blkAIdx, const int blkBIdx)
 {
 	// if (blockIdx.x != blkAIdx) return;
-	__shared__ float dShared_SquaredXYAB[THREADS_PER_BLOCK * 4]; // save squared values for reuse
+	__shared__ float dShared_SquaredXYAB[THREADS_PER_BLOCK * 2]; // save squared values for reuse
+	float XAP, YAP;
 
 	// local shared mem speedup - save squared values for reuse
 	// diameter^2 = (XA-XB)^2 + (YA-YB)^2 = XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
@@ -109,12 +110,12 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 	if (tidA < size)
 	{
 		unsigned int tidB = blkBIdx * blockDim.x + threadIdx.x;
-		dShared_SquaredXYAB[4 * threadIdx.x + 0] = powf(d_xya->x[tidA], 2);	// i%4==0: x^2 of blkA
-		dShared_SquaredXYAB[4 * threadIdx.x + 2] = powf(d_xya->y[tidA], 2);	// i%4==2: y^2 of blkA
+		XAP = powf(d_xya->x[tidA], 2);	// x^2 of blkA
+		YAP = powf(d_xya->y[tidA], 2);	// y^2 of blkA
 		if (tidB < size)
 		{
-			dShared_SquaredXYAB[4 * threadIdx.x + 1] = powf(d_xya->x[tidB], 2);	// i%4==1: x^2 of blkB
-			dShared_SquaredXYAB[4 * threadIdx.x + 3] = powf(d_xya->y[tidB], 2);	// i%4==3: y^2 of blkB
+			dShared_SquaredXYAB[2 * threadIdx.x + 0] = powf(d_xya->x[tidB], 2);	// i%2==0: x^2 of blkB
+			dShared_SquaredXYAB[2 * threadIdx.x + 1] = powf(d_xya->y[tidB], 2);	// i%2==1: y^2 of blkB
 		}
 		__syncthreads();
 
@@ -138,8 +139,8 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 					if (tidO < size && myK == pka[tidO])
 					{
 						// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
-						cur = dShared_SquaredXYAB[4 * threadIdx.x + 0] + dShared_SquaredXYAB[4 * threadBRunningIdx + 1]
-							+ dShared_SquaredXYAB[4 * threadIdx.x + 2] + dShared_SquaredXYAB[4 * threadBRunningIdx + 3]
+						cur = XAP + dShared_SquaredXYAB[2 * threadBRunningIdx + 0]
+							+ YAP + dShared_SquaredXYAB[2 * threadBRunningIdx + 1]
 							- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
 						if (cur > max) max = cur;
 					}
@@ -161,8 +162,8 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 				if (tidO < size && myK == pka[tidO])
 				{
 					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
-					cur = dShared_SquaredXYAB[4 * threadIdx.x + 0] + dShared_SquaredXYAB[4 * ((threadIdx.x + iter) % THREADS_PER_BLOCK) + 1]
-						+ dShared_SquaredXYAB[4 * threadIdx.x + 2] + dShared_SquaredXYAB[4 * ((threadIdx.x + iter) % THREADS_PER_BLOCK) + 3]
+					cur = XAP + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % THREADS_PER_BLOCK) + 0]
+						+ YAP + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % THREADS_PER_BLOCK) + 1]
 						- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
 					if (cur > max) max = cur;
 				}
