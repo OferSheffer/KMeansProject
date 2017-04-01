@@ -1,3 +1,7 @@
+/*
+ Author: Ofer Sheffer, 1 April 2017
+
+*/
 
 #include "Kmeans.h"
 

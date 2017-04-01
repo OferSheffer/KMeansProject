@@ -1,9 +1,11 @@
-fileio - Robert I. Pitts
-Professional CUDA C Programming - John Cheng
-- SoA vs AoS
-Optimizing Parallel Reduction in CUDA - Mark Harris
-University of Minnesota
- - Using MPI_Type_struct
- SoA* cuda memory allocation - Levi barnes
- CUDA AtomicMax for floats - NVIDIA
+Special Thanks
+ --------------
+ Boris Moros -- Concurrent Programming introductory course and source material
+ Robert I. Pitts  -- fileio example
+ John Cheng -- SoA vs AoS concept (from 'Professional CUDA C Programming') 
+ Mark Harris -- Optimizing Parallel Reduction in CUDA (article)
+ Levi Barnes -- SoA* cuda-device memory allocation
+ NVIDIA repository -- CUDA AtomicMax for floats (working code from github)
+ StackExchange
+ Wikipedia article about CUDA
  
