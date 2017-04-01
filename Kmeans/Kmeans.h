@@ -29,7 +29,7 @@
 //#define _DEBUGSM // debug kernel shared memory assignments
 //#define _DEBUG1 // temp values
 //#define _DEBUG2 // low level progress
-#define _DEBUG4 // diameters final for ksize
+//#define _DEBUG4 // diameters final for ksize
 #define _DEBUG5 // QM values test
 
 #ifndef INFINITY

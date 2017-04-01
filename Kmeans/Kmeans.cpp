@@ -43,7 +43,8 @@ int main(int argc, char *argv[])
 #endif
 		readPointsFromFile();			 // init xya with data
 		printf("N=%ld, Max=%d, LIMIT=%d, QM=%f\n\n", N, MAX,LIMIT,QM); FF;
-		MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
+		if (numprocs > 1)
+			MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 	}
 	else
 	{
@@ -59,9 +60,12 @@ int main(int argc, char *argv[])
 	start = omp_get_wtime();
 #endif
 	
-	//send points to slaves
-	MPI_Bcast(&(xya->x[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
-	MPI_Bcast(&(xya->y[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+	if (numprocs > 1)
+	{
+		//send points to slaves
+		MPI_Bcast(&(xya->x[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+		MPI_Bcast(&(xya->y[0]), N, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
+	}
 	float* kDiameters;
 	if (myid == MASTER)
 	{
@@ -71,7 +75,8 @@ int main(int argc, char *argv[])
 #ifdef _DEBUGV
 			printf("Full algorithm -- on ksize: %d\n***********************\n", ksize); fflush(stdout);
 #endif
-			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
+			if (numprocs > 1)
+				MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 			mallocSoA(&kCenters, ksize);
 			kDiameters = (float*)malloc(ksize * sizeof(float));
 
@@ -95,14 +100,6 @@ int main(int argc, char *argv[])
 			printArrTestPrint(MASTER, kCenters->y, ksize, "ompMaster - kCentersY");
 			printf("********************************************************\n\n");
 #endif
-			//getKQuality();
-			//step1: for every cluster - get diameter
-			//concept: 1) Master sends point arrays as well as pka array to slaves
-			//master and slaves use a cuda kernel (maxSquareDistances) with a block of 1024 threads (less if it takes too long)
-			//kernel receives two sections of the array and each thread of the 1024 registers its maximum
-			//squared distance from those in the other 1024 who belong to the same cluster.
-			//master dynamically sends computers which block to compare with which block
-			//slaves send back the indices that gathe data to master to combine all 
 
 			// *** kDiametersWithCuda ***
 			/*
@@ -113,7 +110,8 @@ int main(int argc, char *argv[])
 			  Main benefit:
 			  Instead of O(N^2), we get O(Bn^2). Adding dynamic MPI based scheduling increases performance further.
 			*/
-			MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
+			if (numprocs > 1)
+				MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
 			
 			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
 			if (cudaStatus != cudaSuccess) {
@@ -165,7 +163,8 @@ int main(int argc, char *argv[])
 				printf("********************************************************\n\n"); FF;
 				//let the slaves know the job is done
 				ksize = 0;
-				MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
+				if (numprocs > 1)
+					MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 				printf("\nQuality work complete:   ***  %f  *** Smaller than %f?  * %d *\n\n*********************************************\n", kQuality, QM, (kQuality <= QM)); FF;
 
 				cudaStatus = cudaDeviceReset();

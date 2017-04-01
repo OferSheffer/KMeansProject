@@ -381,7 +381,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #endif
 	}
 	
-	//TODO: use MASTER GPU to asynchronously run first job
+	//TODO: use MASTER GPU to asynchronously run first job and poll for completion to give new jobs
 	/*
 	//async initializations for MASTER
 	cudaEvent_t myJobIsDone;
@@ -411,9 +411,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		int resultsCounter = 1;
 		
 		// distribute work to SLAVES
-		//Testing
-		//NO_JOBS = 2;
-		//for (x = 1; x < numprocs && x < NO_JOBS; x++)
 		for (x = 1; x < numprocs && x < NO_JOBS; x++)
 		{
 			// send numprocs values to get the work started
@@ -424,8 +421,23 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		{
 			//TEST print
 			//printf("x value %2d, count: %2d\n", x, resultsCounter); fflush(stdout);
+			if (numprocs > 1)
+				MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			else
+			{   // only the "MASTER" works
+				kDiamBlockWithCuda << <1, THREADS_PER_BLOCK >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * x], jobs[2 * x + 1]); x++;
+				cudaStatus = cudaGetLastError();
+				if (cudaStatus != cudaSuccess) 
+				{
+					fprintf(stderr, "id: %d, kernel kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus));
+					FF;
+					goto Error;
+				}
+			}
+			cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 
-			MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			cudaStatus = cudaMemcpy(kDiametersTempAnswer, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
+
 			resultsCounter++;
 
 			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
@@ -439,15 +451,18 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #endif
 
 			// if needed, send next job and increase x
-			if (x < NO_JOBS)
+			if (numprocs > 1)
 			{
-				MPI_Send(&jobs[2*x], 2, MPI_INT, status.MPI_SOURCE, NEW_JOB, MPI_COMM_WORLD);
-				x++;
-			}
-			else
-			{
-				// notify process about work completion
-				MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, STOP_WORKING, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
+				if (x < NO_JOBS)
+				{
+					MPI_Send(&jobs[2 * x], 2, MPI_INT, status.MPI_SOURCE, NEW_JOB, MPI_COMM_WORLD);
+					x++;
+				}
+				else
+				{
+					// notify process about work completion
+					MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, STOP_WORKING, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
+				}
 			}
 		}
 		
