@@ -152,8 +152,13 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 			}
 		}
 		//TODO: consider reduction instead
-		// takes advantage of varying completion times of threads
-		AtomicMax(&(kDiameters[myK]), sqrtf(max));
+		
+		AtomicMax(&(kDiameters[myK]), sqrtf(max)); // takes advantage of varying completion times of threads (but seems terrible)
+
+
+
+
+
 	}
 }
 
@@ -339,12 +344,12 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			goto Error;
 		}
 		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
-
-		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 #ifdef _PROF3
 		diamKerFinish = omp_get_wtime();
 		if (myid == MASTER) { printf("kCenters %d run-time: %f\n", ksize, diamKerFinish - diamKerStart); FF; }
 #endif
+		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
+
 #ifdef _DEBUG1
 		//TEST kDiameters 
 		printArrTestPrint(myid, kDiameters, ksize, "kDiameters");

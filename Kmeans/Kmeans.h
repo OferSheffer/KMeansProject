@@ -19,9 +19,8 @@
 
 //#define _DEBUGV		// verbose
 #define _TIME			// time output
-#define _PROF3			// time diametersCuda kernel operation on 0,0 (0.008*5050=40sec)
-
-
+#define _PROF3			// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
+						// 3 x 40sec ~= 120 --> look to improve this one for great changes
 
 //#define _DEBUGSM // debug kernel shared memory assignments
 //#define _DEBUG1 // temp values
