@@ -66,7 +66,6 @@ int main(int argc, char *argv[])
 	if (myid == MASTER)
 	{
 				
-		//for (long ksize = 2; ksize <= MAX; ksize++)
 		for (long ksize = 2; ksize <= MAX; ksize++)
 		{
 #ifdef _DEBUGV
@@ -145,6 +144,15 @@ int main(int argc, char *argv[])
 			//TEST Quality
 			printf("\nQuality work complete:   ***  %f  *** Smaller than %f?  * %d *\n\n*********************************************\n", kQuality, QM, (kQuality <= QM)); FF;
 #endif
+
+
+#ifdef _TIMEK
+			finish = omp_get_wtime();
+			if (myid == MASTER) { printf("run-time: %f\n", finish - start); FF; }
+#endif
+
+
+
 
 			if (kQuality <= QM)
 			{

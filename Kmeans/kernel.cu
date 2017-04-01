@@ -107,6 +107,7 @@ __device__ void AtomicMax(float * const address, const float value)
 	} while (assumed != old);
 }
 
+
 //Note: will be x2 faster with smaller blocks -- but will require (^2/numproc) runs
 __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays* d_xya, int* pka, const int size, const int blkAIdx, const int blkBIdx)
 {
@@ -132,32 +133,57 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 		float cur;
 		int myK = pka[tidA];
 
-		// run kernel with a single block, use external block indices to syncronize operations
-		for (int tidO, threadBRunningIdx = 0; threadBRunningIdx < blockDim.x; threadBRunningIdx++)
+		// OPTION A
+		if (ksize <= 3)
 		{
-			// prevent repeated calculations
-			if (threadIdx.x < threadBRunningIdx)
-			{
-				tidO = blkBIdx * blockDim.x + threadBRunningIdx;
+			
 
-				// only calculate for points with the same k association
-				if (tidO < size && myK == pka[tidO])
+			//TODO: consider load blancing/loop unrolling of some sort
+			// run kernel with a single block, use external block indices to syncronize operations
+			for (int tidO, threadBRunningIdx = 0; threadBRunningIdx < blockDim.x; threadBRunningIdx++)
+			{
+				// prevent repeated calculations
+				if (threadIdx.x < threadBRunningIdx)
 				{
-					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
-					cur = dShared_SquaredXYAB[4 * threadIdx.x + 0] + dShared_SquaredXYAB[4 * threadBRunningIdx + 1]
-						+ dShared_SquaredXYAB[4 * threadIdx.x + 2] + dShared_SquaredXYAB[4 * threadBRunningIdx + 3]
-						- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
-					if (cur > max) max = cur;
+					tidO = blkBIdx * blockDim.x + threadBRunningIdx;
+
+					// only calculate for points with the same k association
+					if (tidO < size && myK == pka[tidO])
+					{
+						// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
+						cur = dShared_SquaredXYAB[4 * threadIdx.x + 0] + dShared_SquaredXYAB[4 * threadBRunningIdx + 1]
+							+ dShared_SquaredXYAB[4 * threadIdx.x + 2] + dShared_SquaredXYAB[4 * threadBRunningIdx + 3]
+							- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
+						if (cur > max) max = cur;
+					}
 				}
 			}
 		}
-		//TODO: consider reduction instead
-		
-		AtomicMax(&(kDiameters[myK]), sqrtf(max)); // takes advantage of varying completion times of threads (but seems terrible)
+		else
+		{
 
+			// OPTION B
+			//int revTidA = blkAIdx * blockDim.x + blockDim.x - threadIdx.x + 1; // e.g. 1023 -> 0, 1022 -> 1
 
+			//TODO: consider load blancing/loop unrolling of some sort
+			// run kernel with a single block, use external block indices to syncronize operations
+			int lastIter = THREADS_PER_BLOCK / 2;
+			for (int tidO, iter = 1; iter < lastIter; iter++)
+			{
+				tidO = blkBIdx * blockDim.x + (threadIdx.x + iter) % THREADS_PER_BLOCK;
+				if (tidO < size && myK == pka[tidO])
+				{
+					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
+					cur = dShared_SquaredXYAB[4 * threadIdx.x + 0] + dShared_SquaredXYAB[4 * ((threadIdx.x + iter) % THREADS_PER_BLOCK) + 1]
+						+ dShared_SquaredXYAB[4 * threadIdx.x + 2] + dShared_SquaredXYAB[4 * ((threadIdx.x + iter) % THREADS_PER_BLOCK) + 3]
+						- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
+					if (cur > max) max = cur;
+				}
 
+			}
+		}
 
+		AtomicMax(&(kDiameters[myK]), sqrtf(max));	// takes advantage of varying completion times
 
 	}
 }
@@ -335,7 +361,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #ifdef _PROF3
 		diamKerStart = omp_get_wtime();
 #endif
-		//kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError(); 
 		if (cudaStatus != cudaSuccess) {
@@ -346,7 +371,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 #ifdef _PROF3
 		diamKerFinish = omp_get_wtime();
-		if (myid == MASTER) { printf("kCenters %d run-time: %f\n", ksize, diamKerFinish - diamKerStart); FF; }
+		if (myid == MASTER) { printf("kDiamBlock %d run-time: %f\n", ksize, diamKerFinish - diamKerStart); FF; }
 #endif
 		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
