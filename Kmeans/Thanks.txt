@@ -8,4 +8,10 @@ Special Thanks
  NVIDIA repository -- CUDA AtomicMax for floats (working code from github)
  StackExchange
  Wikipedia article about CUDA
+
+
+  Important note:
+----------------
+ for weak processors, uncomment #define _WEAKGPU from the header file
+ 
  
