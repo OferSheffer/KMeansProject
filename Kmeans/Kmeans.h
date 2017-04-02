@@ -14,17 +14,22 @@
 #define FF fflush(0)
 #define DDD { printf("****DDD!****\n"); FF; }
 
-//#define _RUNAFEKA
-//#define _WEAKGPU
+//**********************************
+// GPU DEFINITIONS
+//***********************************
+#define _WEAKGPU
+//#define _WEAKGPU2
 
+//**********************************
+//#define _RUNAFEKA
 //#define _DEBUGV		// verbose
 #define _TIME			// time output
 #define _TIMEK		// time per ksize
 //#define _PROF3		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
-						// 3 x 40sec ~= 120 --> look to improve this one for great changes
-						// Option B: balances work (threads finish symultaneously)
-						//		Halves the time for large K values.
-						//		Heavy "atomic" function delay period for ksize of 2-3
+// 3 x 40sec ~= 120 --> look to improve this one for great changes
+// Option B: balances work (threads finish symultaneously)
+//		Halves the time for large K values.
+//		Heavy "atomic" function delay period for ksize of 2-3
 
 //#define _DEBUGSM // debug kernel shared memory assignments
 //#define _DEBUG1 // temp values

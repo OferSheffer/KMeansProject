@@ -1,16 +1,17 @@
 /*
- Author: Ofer Sheffer, 1 April 2017
+Author: Ofer Sheffer, 1 April 2017
 
- Important note:
+Important note:
 ----------------
- for weak processors, uncomment #define _WEAKGPU from the header file
+for weak processors, uncomment #define _WEAKGPU from the header file
+
 */
 
 #include "Kmeans.h"
 
 //NOTE: use \\ in systems were / does not work
-#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
-//#define FILE_NAME "D:\\cluster1.txt"
+//#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
+#define FILE_NAME "D:\\cluster1.txt"
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
 
@@ -34,7 +35,6 @@ int numprocs, myid;
 
 int main(int argc, char *argv[])
 {
-
 	//int res;
 	double start, finish;
 
@@ -44,12 +44,38 @@ int main(int argc, char *argv[])
 	MPI_Status status;
 
 	if (myid == MASTER)
-	{	
+	{
+		int devID;
+		cudaDeviceProp props;
+		cudaGetDevice(&devID);
+		cudaGetDeviceProperties(&props, devID);
+		printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
+		printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
+		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
+#ifdef _WEAKGPU
+		printf("----------------------------------------------------------------\n");
+		printf("** NOTE: WeakGPU defined in Kmeans.h (remove for strong GPUs) **\n");
+		printf("----------------------------------------------------------------\n\n");
+#elif _WEAKGPU2
+		printf("----------------------------------------------------------------\n");
+		printf("** NOTE: WeakGPU2 defined in Kmeans.h (remove for strong GPUs) **\n");
+		printf("----------------------------------------------------------------\n\n");
+#endif
+
+
+		printf("*************************************\n");
+		printf("******    Kmeans algorithm    *******\n");
+		printf("******  Author: Ofer Sheffer  *******\n");
+		printf("*************************************\n");
+
 #ifdef _DEBUGV
 		printf(FILE_NAME"\n"); FF;
 #endif
 		readPointsFromFile();			 // init xya with data
-		printf("N=%ld, Max=%d, LIMIT=%d, QM=%f\n\n", N, MAX,LIMIT,QM); FF;
+		printf("N=%ld, Max=%d, LIMIT=%d, QM=%f\n\n\n", N, MAX, LIMIT, QM); FF;
+
+
+
 		if (numprocs > 1)
 			MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 	}
@@ -59,14 +85,14 @@ int main(int argc, char *argv[])
 		mallocSoA(&xya, N);
 	}
 	initClusterAssociationArrays();  // no cluster (-1)
-	
+
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 
 #ifdef _TIME
 	start = omp_get_wtime();
 #endif
-	
+
 	if (numprocs > 1)
 	{
 		//send points to slaves
@@ -76,7 +102,7 @@ int main(int argc, char *argv[])
 	float* kDiameters;
 	if (myid == MASTER)
 	{
-				
+
 		for (long ksize = 2; ksize <= MAX; ksize++)
 		{
 #ifdef _DEBUGV
@@ -89,7 +115,7 @@ int main(int argc, char *argv[])
 
 			// allocate host memory
 			size_t nBytes = sizeof(xya);
-			
+
 			// *** kCentersWithCuda ***
 			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
 			if (cudaStatus != cudaSuccess) {
@@ -110,22 +136,22 @@ int main(int argc, char *argv[])
 
 			// *** kDiametersWithCuda ***
 			/*
-			  Core concept:
-			  -------------
-			  1) Break data into blocks of size THREADS_PER_BLOCK. e.g. 100,000/1024=>10 Blocks (Bn for short)
-			  2) Run kernel O(Bn^2) on 2 block permutations to receive all possible distances (reduceMax to get diameters)
-			  Main benefit:
-			  Instead of O(N^2), we get O(Bn^2). Adding dynamic MPI based scheduling increases performance further.
+			Core concept:
+			-------------
+			1) Break data into blocks of size THREADS_PER_BLOCK. e.g. 100,000/1024=>10 Blocks (Bn for short)
+			2) Run kernel O(Bn^2) on 2 block permutations to receive all possible distances (reduceMax to get diameters)
+			Main benefit:
+			Instead of O(N^2), we get O(Bn^2). Adding dynamic MPI based scheduling increases performance further.
 			*/
 			if (numprocs > 1)
 				MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
-			
+
 			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "kCentersWithCuda failed!");
 				return 1;
 			}
-			
+
 #ifdef _DEBUG4
 			//TEST kDiameters 
 			printf("\nkDiameters work complete:\n"
@@ -135,7 +161,7 @@ int main(int argc, char *argv[])
 
 			//sum kQuality for every (center_i,center_j) combo (i < j): (d_i+d_j)/distance(i,j)
 			float kQuality = 0;
-			#pragma omp parallel for reduction(+:kQuality)
+#pragma omp parallel for reduction(+:kQuality)
 			for (int i = 0; i < ksize; i++)
 			{
 				for (int j = 0; j < ksize; j++)
@@ -179,7 +205,7 @@ int main(int argc, char *argv[])
 					fprintf(stderr, "cudaDeviceReset failed!");
 					return 1;
 				}
-				
+
 				break;
 			}
 
@@ -191,17 +217,17 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
-	else 
+	else
 	{
 		// slaves
-		long ksize=1;
-		while(true)
+		long ksize = 1;
+		while (true)
 		{
 			cudaError_t cudaStatus;
 			MPI_Bcast(&ksize, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 			if (ksize == 0)
 			{
-					cudaStatus = cudaDeviceReset();
+				cudaStatus = cudaDeviceReset();
 				if (cudaStatus != cudaSuccess) {
 					fprintf(stderr, "cudaDeviceReset failed!");
 					return 1;
@@ -222,7 +248,7 @@ int main(int argc, char *argv[])
 				return 1;
 			}
 
-		
+
 			cudaStatus = cudaDeviceReset();
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "cudaDeviceReset failed!");
@@ -231,7 +257,7 @@ int main(int argc, char *argv[])
 
 		}
 	}
-	
+
 	freeSoA(kCenters);
 
 #ifdef _DEBUGV
@@ -287,7 +313,7 @@ void populateSoA(FILE* fp)
 	{
 		fscanf(fp, "%d %f %f", &i, &(xya->x[i]), &(xya->y[i]));
 	}
-		
+
 }
 
 
@@ -328,7 +354,7 @@ void ompRecenterFromCuda(int ksize)
 	int*   ompCntPArr = (int*)calloc(NO_OMP_THREADS * ksize, sizeof(int));
 
 	// step 1:
-	#pragma omp parallel for num_threads(NO_OMP_THREADS)
+#pragma omp parallel for num_threads(NO_OMP_THREADS)
 	//for (long i = 0; i < N; i++)
 	for (int i = 0; i < N; i++)
 	{
@@ -404,7 +430,7 @@ void initK(long ksize)
 void prepK(int* ompCntPArr, long ksize)
 {
 	// reset Kxy to 0 where there are points in the new assignments
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int idx = 0; idx < ksize; idx++)
 	{
 		for (int i = idx*NO_OMP_THREADS; i < idx*NO_OMP_THREADS + NO_OMP_THREADS; i++)
@@ -485,34 +511,4 @@ void printArrTestPrint(int myid, float* arr, int size, const char* arrName)
 	}
 }
 
-
-//TODO quick test
-//for (int i = 0; i < 10; i++)
-//{
-//	printf("%d: %6.3f, %6.3f Closest to K-idx: %d\n", i, xya->x[i], xya->y[i], pka[i]);
-//}
-
-//TODO quick omp thread check
-//printf("id: %d, running i: %d\n", omp_get_thread_num(), i);
-
-//MPI_TEST
-//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 0, (xya->x)[0], (xya->y)[0]); fflush(stdout);
-//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 1, (xya->x)[1], (xya->y)[1]); fflush(stdout);
-//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 126, (xya->x)[126], (xya->y)[126]); fflush(stdout);
-//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 127, (xya->x)[127], (xya->y)[127]); fflush(stdout);
-//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 510, (xya->x)[510], (xya->y)[510]); fflush(stdout);
-//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 511, (xya->x)[511], (xya->y)[511]); fflush(stdout);
-//printf("id %d, %3d: %8.3f, %8.3f\n", myid, 999, (xya->x)[999], (xya->y)[999]); fflush(stdout);
-//printf("id %d, %3d: %8.3f, %8.3f\n", myid, N - 1, (xya->x)[N - 1], (xya->y)[N - 1]); fflush(stdout);
-
-
-// Considerations:
-// - SoA helps increase load/store productivity
-// - GPU Fine grain SIMD, low latency floating point computation, Streaming throughput of large data
-// - CUDA - deducated super-threaded
-// - GPU - lightweight threads, 1000s of threads for efficiency
-// - CUDA reduce - decompose into multiple kernels: negligible HW overhead, low SW overhead (bandwidth-optimal)
-// - GPU performance: Choose the right metric:
-//		GFLOP / s: for compute - bound kernels
-//		Bandwidth : for memory - bound kernels
 
