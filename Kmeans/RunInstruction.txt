@@ -1,3 +1,7 @@
+1. place point file on D:\
+2. should run on most setups. (example run below)
+3. consider recompilation if messaged regarding GPU performance.
+
 100K points, 3 computers, run with 4 processes:
 ----------------------------------------------
 

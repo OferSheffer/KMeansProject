@@ -10,8 +10,8 @@ for weak processors, uncomment #define _WEAKGPU from the header file
 #include "Kmeans.h"
 
 //NOTE: use \\ in systems were / does not work
-//#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
-#define FILE_NAME "D:\\cluster1.txt"
+#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
+//#define FILE_NAME "D:\\cluster1.txt"
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
 
