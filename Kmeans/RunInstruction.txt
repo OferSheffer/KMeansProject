@@ -1,0 +1,48 @@
+100K points, 3 computers, run with 4 processes:
+----------------------------------------------
+
+"..\mpiexec.exe" -hosts 3 <Master> 2 <Slave1> 1 <Slave2> 1 --noprompt "D:\Kmeans.exe"
+
+Example:
+"C:\Program Files\MPICH2\bin\mpiexec.exe" -hosts 3 H4-03 2 H4-04 1 H4-02 1  -noprompt "D:\Kmeans.exe"
+
+Output from AFEKA run:
+----------------------
+
+> Compute 2.1 CUDA device: [Quadro 600]
+  Total amount of shared memory per block:       49152 bytes
+  Total number of registers available per block: 32768
+----------------------------------------------------------------
+** NOTE: WeakGPU defined in Kmeans.h (remove for strong GPUs) **
+----------------------------------------------------------------
+
+*************************************
+******    Kmeans algorithm    *******
+******  Author: Ofer Sheffer  *******
+*************************************
+N=100000, Max=4, LIMIT=20, QM=0.500000
+
+
+Quality work complete:   ***  2.018355  *** Smaller than 0.500000?  * 0 *
+
+*********************************************
+run-time: 100.491561
+
+Quality work complete:   ***  1.848797  *** Smaller than 0.500000?  * 0 *
+
+*********************************************
+run-time: 200.453282
+
+Quality work complete:   ***  0.124411  *** Smaller than 0.500000?  * 1 *
+
+*********************************************
+run-time: 270.511263
+Master 0 - kCentersX0-3: -0.497127, -0.500514, 99.499268, 99.500381
+Master 0 - kCentersY0-3: -0.501050, 99.498711, 99.501183, -0.497691
+********************************************************
+
+
+Quality work complete:   ***  0.124411  *** Smaller than 0.500000?  * 1 *
+
+*********************************************
+run-time: 270.511273
