@@ -1,6 +1,9 @@
 /*
  Author: Ofer Sheffer, 1 April 2017
 
+ Important note:
+----------------
+ for weak processors, uncomment #define _WEAKGPU from the header file
 */
 
 #include "Kmeans.h"
