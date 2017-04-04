@@ -178,7 +178,8 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 {
 	cudaError_t cudaStatus;
 	size_t SharedMemBytes;
-	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
+	//const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
+	const int NO_BLOCKS = ceil(N / (float)THREADS_PER_BLOCK);
 
 	initK(ksize);				// K-centers = first points in data (on host)
 	int iter = 0;
@@ -293,7 +294,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	cudaError_t cudaStatus;
 	size_t SharedMemBytes;
 	double diamKerStart, diamKerFinish;
-	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
+	//const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
+	const int NO_BLOCKS = ceil(N / (float)THREADS_PER_BLOCK);
+
 	xyArrays *d_xya;
 	int	 *d_pka;
 	float* d_kDiameters;
@@ -335,11 +338,12 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
+#ifdef _DEBUGV
+		printf("NO_BLOCKS: %d\n\n\n", NO_BLOCKS); FF;
+#endif
 #ifdef _DEBUG2
-		//TEST print
 		printf("%d, FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
 #endif	
-
 #ifdef _DEBUGSM
 		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
 		printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
@@ -348,7 +352,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #ifdef _PROF3
 		diamKerStart = omp_get_wtime();
 #endif
-
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
@@ -398,7 +401,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	kDiametersTempAnswer = (float*)malloc(ksize * sizeof(float));
 	if (myid == MASTER)
 	{
-
 		int x, const NO_JOBS = (NO_BLOCKS + 1)*(float)NO_BLOCKS / 2;
 		int* jobs = initJobArray(NO_BLOCKS, NO_JOBS);
 		int resultsCounter = 1;

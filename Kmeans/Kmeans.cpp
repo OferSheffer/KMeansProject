@@ -56,12 +56,12 @@ int main(int argc, char *argv[])
 		//printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
 		initializeWithGpuReduction();
 
-		printf("*************************************\n");
-		printf("*****                          ******\n");
-		printf("*****     Kmeans algorithm     ******\n");
-		printf("*****   Author: Ofer Sheffer   ******\n");
-		printf("*****                          ******\n");
-		printf("*************************************\n");
+		printf("\t\t*************************************\n");
+		printf("\t\t*****                          ******\n");
+		printf("\t\t*****     Kmeans algorithm     ******\n");
+		printf("\t\t*****   Author: Ofer Sheffer   ******\n");
+		printf("\t\t*****                          ******\n");
+		printf("\t\t*************************************\n");
 		
 
 #ifdef _DEBUGV
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 #endif
 
 		readPointsFromFile();			 // init xya with data
-		printf("N=%ld, Max=%d, LIMIT=%d, QM=%f\n\n\n", N, MAX, LIMIT, QM); FF;
+		printf("\t\tN=%ld, Max=%d, LIMIT=%d, QM=%f\n\n\n", N, MAX, LIMIT, QM); FF;
 
 		if (numprocs > 1)
 			MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
@@ -81,7 +81,8 @@ int main(int argc, char *argv[])
 	}
 	initClusterAssociationArrays();  // no cluster (-1)
 
-	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
+	const int NO_BLOCKS = ceil(N / (float)THREADS_PER_BLOCK);
+
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 
 #ifdef _TIME

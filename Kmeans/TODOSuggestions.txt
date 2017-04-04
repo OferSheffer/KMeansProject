@@ -1,14 +1,9 @@
-1. Rework GPU test into runtime evalaulation
 2. Reduce CUDA "diameter in blocks" load times by loading exact block data into GPU.
 2.1. am I loading the info many times? or just once at the beginning
 2.2. am I unloading all the info many times?
 -- perhaps its ok to load all the data at the beginning
 -- but then write out only the relevant data to its proper location
 -- am I writing out data to a location or just the KDiameter-values?
-
-3. consider Quadro600: #threads in a block is 1024,
-   but #threads at the same time is bigger 
-   (how much bigger?) How do I use this property?
 
 4. consider merging operations on the Kernel
    (maybe load more data and run it - 
