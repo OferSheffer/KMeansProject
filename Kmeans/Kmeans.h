@@ -26,7 +26,7 @@ void initializeWithGpuReduction();
 
 //**********************************
 //#define _RUNAFEKA
-// #define _DEBUGV		// verbose
+//#define _DEBUGV		// verbose
 #define _TIME			// time output
 #define _TIMEK		// time per ksize
 //#define _PROF3		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)

@@ -72,3 +72,4 @@ will provide a hard limit on how many registers the assembler will try and use f
 the kernel. Usually it will result in more spilling to local memory
 
 
+12. fix the single process test so it only runs once/twice and not so many times

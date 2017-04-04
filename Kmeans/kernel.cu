@@ -268,7 +268,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 		flag = ompReduceCudaFlags(h_kaFlags, NO_BLOCKS);
 
-		//TODO: consider replacing with a CUDA implementation
 		ompRecenterFromCuda(ksize);
 
 	} while (++iter < LIMIT && flag);  // association changes: need to re-cluster
@@ -294,7 +293,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	cudaError_t cudaStatus;
 	size_t SharedMemBytes;
 	double diamKerStart, diamKerFinish;
-	//const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	const int NO_BLOCKS = ceil(N / (float)THREADS_PER_BLOCK);
 
 	xyArrays *d_xya;
@@ -303,7 +301,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	MPI_Status status;
 	// Kernel call ** kDiamBlockWithCuda
 	SharedMemBytes = THREADS_PER_BLOCK * 2 * sizeof(float);
-
 
 	//initialize diameters as zero
 	for (int i = 0; i < ksize; i++)
@@ -339,11 +336,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	if (myid == MASTER)
 	{
 #ifdef _DEBUGV
-		printf("NO_BLOCKS: %d\n\n\n", NO_BLOCKS); FF;
+		printf("NO_BLOCKS: %d\n", NO_BLOCKS); FF;
+		printf("Proc %d, Attempting FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
 #endif
-#ifdef _DEBUG2
-		printf("%d, FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
-#endif	
 #ifdef _DEBUGSM
 		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
 		printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
@@ -474,9 +469,8 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 			if (masterTag == NEW_JOB)
 			{
-#ifdef _DEBUG2
-				//TEST print
-				printf("%d, jobForBlocks %2d, %2d\n", myid, jobForBlocks[0], jobForBlocks[1]); fflush(stdout);
+#ifdef _DEBUGV
+				printf("Proc %d, working on jobForBlocks %2d, %2d\n", myid, jobForBlocks[0], jobForBlocks[1]); fflush(stdout);
 #endif
 #ifdef _DEBUGSM
 				printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
