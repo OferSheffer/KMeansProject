@@ -558,6 +558,11 @@ void initializeWithGpuReduction()
 		}
 		else
 		{
+			// TODO testing 512 threads
+			//THREADS_PER_BLOCK = BASE_THREADS_PER_BLOCK / 2;
+
+
+
 			printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
 			printf("  Kernel/Gpu run with 2^%d reduction factor\n"
 				"  THREADS_PER_BLOCK:                         %7d /%7d\n"
