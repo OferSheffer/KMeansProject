@@ -18,15 +18,15 @@
 // GPU DEFINITIONS
 //***********************************
 #define BASE_THREADS_PER_BLOCK 1024
-int THREADS_PER_BLOCK;
-int _gpuReduction;
-size_t SharedMemory;
+//int THREADS_PER_BLOCK;
+//int _gpuReduction;
+//size_t SharedMemBytes;
 
 void initializeWithGpuReduction();
 
 //**********************************
 //#define _RUNAFEKA
-//#define _DEBUGV		// verbose
+#define _DEBUGV		// verbose
 #define _TIME			// time output
 #define _TIMEK		// time per ksize
 //#define _PROF3		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
@@ -53,8 +53,8 @@ typedef struct _xyArrays {
 	float *y;
 } xyArrays;
 
-cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* pka, long N, int LIMIT);
-cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs);
+cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* pka, long N, int LIMIT, int THREADS_PER_BLOCK);
+cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs, int THREADS_PER_BLOCK);
 
 void readPointsFromFile();
 

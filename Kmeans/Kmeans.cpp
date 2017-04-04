@@ -15,6 +15,13 @@ for weak processors, uncomment #define _WEAKGPU from the header file
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
 
+/////////// GPU controls
+int THREADS_PER_BLOCK;
+int _gpuReduction;
+size_t SharedMemBytes;
+
+
+
 
 long  N;			// number of points. e.g. 300000
 int   MAX;			// maximum # of clusters to find. e.g. 300
@@ -40,13 +47,14 @@ int main(int argc, char *argv[])
 
 	if (myid == MASTER)
 	{
-		int devID;
-		cudaDeviceProp props;
-		cudaGetDevice(&devID);
-		cudaGetDeviceProperties(&props, devID);
-		printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
-		printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
-		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
+		//int devID;
+		//cudaDeviceProp props;
+		//cudaGetDevice(&devID);
+		//cudaGetDeviceProperties(&props, devID);
+		//printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
+		//printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
+		//printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
+		initializeWithGpuReduction();
 
 		printf("*************************************\n");
 		printf("*****                          ******\n");
@@ -57,7 +65,7 @@ int main(int argc, char *argv[])
 		
 
 #ifdef _DEBUGV
-		printf("\n"FILE_NAME"\n"); FF;
+		printf("\n" FILE_NAME "\n"); FF;
 #endif
 
 		readPointsFromFile();			 // init xya with data
@@ -104,10 +112,9 @@ int main(int argc, char *argv[])
 			size_t nBytes = sizeof(xya);
 
 			// *** kCentersWithCuda ***
-			initializeWithGpuReduction();
-			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
+			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT, THREADS_PER_BLOCK);
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "kCentersWithCuda failed!"); FF;
+				fprintf(stderr, "kCentersWithCuda failed!\n"); FF;
 				freeSoA(xya);
 				free(pka);
 				free(kDiameters);
@@ -134,9 +141,9 @@ int main(int argc, char *argv[])
 			if (numprocs > 1)
 				MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
 
-			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
+			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs, THREADS_PER_BLOCK);
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "kCentersWithCuda failed!");
+				fprintf(stderr, "kDiametersWithCuda failed!\n"); FF;
 				return 1;
 			}
 
@@ -190,7 +197,7 @@ int main(int argc, char *argv[])
 
 				cudaStatus = cudaDeviceReset();
 				if (cudaStatus != cudaSuccess) {
-					fprintf(stderr, "cudaDeviceReset failed!");
+					fprintf(stderr, "cudaDeviceReset failed!\n"); FF;
 					return 1;
 				}
 
@@ -200,7 +207,7 @@ int main(int argc, char *argv[])
 
 			cudaStatus = cudaDeviceReset();
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaDeviceReset failed!");
+				fprintf(stderr, "cudaDeviceReset failed!\n"); FF;
 				return 1;
 			}
 		}
@@ -230,16 +237,16 @@ int main(int argc, char *argv[])
 
 
 			//getKQuality();
-			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
+			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs, THREADS_PER_BLOCK);
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "kCentersWithCuda failed!");
+				fprintf(stderr, "kCentersWithCuda failed!\n"); FF;
 				return 1;
 			}
 
 
 			cudaStatus = cudaDeviceReset();
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaDeviceReset failed!");
+				fprintf(stderr, "cudaDeviceReset failed!\n"); FF;
 				return 1;
 			}
 
@@ -537,8 +544,8 @@ void initializeWithGpuReduction()
 		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));  // MAX
 		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
 
-		printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
-		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
+		/*printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock); FF;
+		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock); FF;*/
 
 		if (props.sharedMemPerBlock < maxRequestedSharedMemBytes || 
 			props.regsPerBlock < RequestedRegistersPerBlock)
@@ -552,9 +559,11 @@ void initializeWithGpuReduction()
 		}
 		else
 		{
+			printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
 			printf("  Kernel/Gpu run with 2^%d reduction factor\n"
-				   "  Per block Shared memory usage:		%lu/%lu bytes\n"
-				   "  Per block register usage (estimated):	%d/%d\n\n", _gpuReduction, 
+				"  THREADS_PER_BLOCK:                         %7d /%7d\n"
+				"  Per block Shared memory usage:             %7lu /%7lu bytes\n"
+				"  Per block register usage (estimated):      %7d /%7d\n\n", _gpuReduction, THREADS_PER_BLOCK, props.maxThreadsPerBlock,
 																	maxRequestedSharedMemBytes, props.sharedMemPerBlock, 
 																	RequestedRegistersPerBlock, props.regsPerBlock); FF;
 			break;

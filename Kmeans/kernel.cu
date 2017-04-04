@@ -5,6 +5,9 @@
 #define CHKSYNC_ERROR	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaDeviceSynchronize failed! Error code %d\n", cudaStatus); FF; goto Error; }
 #define EVENT_ERROR		if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventOperation failed! Error code %d\n", cudaStatus); FF; goto Error; }
 
+#define CHKSYNC_ERRORDDD	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaDeviceSynchronize failed here!!!! Error code %d\n", cudaStatus); FF; goto Error; }
+
+
 #define MASTER 0
 #define NEW_JOB 0
 #define STOP_WORKING 1
@@ -171,9 +174,10 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 
 
 // Helper function for finding best centers for ksize clusters
-cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* pka, long N, int LIMIT)
+cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* pka, long N, int LIMIT, int THREADS_PER_BLOCK)
 {
 	cudaError_t cudaStatus;
+	size_t SharedMemBytes;
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 
 	initK(ksize);				// K-centers = first points in data (on host)
@@ -188,7 +192,7 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	bool     *d_kaFlags;				// array to flags changes in point-to-cluster association	
 	cudaStatus = cudaSetDevice(0);
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?"); FF;
 		goto Error;
 	}
 
@@ -228,24 +232,28 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 	// *** phase 1 ***
 	do {
+#ifdef _DEBUGV
+		printf("kCentersWithCuda loop on %d, starting iter: %d\n", ksize, iter + 1); FF;
+#endif
 
 		cudaStatus = cudaMemcpy(h_kCenters.x, kCenters->x, nKCenterBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		cudaStatus = cudaMemcpy(h_kCenters.y, kCenters->y, nKCenterBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		
 		// Kernel call ** reClusterWithCuda
-		SharedMemory = THREADS_PER_BLOCK * sizeof(bool);
+		SharedMemBytes = THREADS_PER_BLOCK * sizeof(bool); 
 #ifdef _DEBUGSM
 		int SharedMemBytes = THREADS_PER_BLOCK * sizeof(bool);
 		printf("__global__ reClusterWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
 #endif
 		if (cudaGetLastError() != cudaSuccess) { printf("Failed before reCluster\n"); FF; }
-		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK, SharedMemory >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
+		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "reClusterWithCuda launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			FF;
 			goto Error;
 		}
+
 		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
@@ -254,7 +262,6 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 			goto Error;
 		}
 
-
 		cudaStatus = cudaMemcpy(h_kaFlags, d_kaFlags, NO_BLOCKS * sizeof(bool), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 		cudaStatus = cudaMemcpy(pka, d_pka, N * sizeof(int), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
@@ -262,9 +269,7 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 		//TODO: consider replacing with a CUDA implementation
 		ompRecenterFromCuda(ksize);
-#ifdef _DEBUGV
-		printf("kCentersWithCuda on %d, iter: %d\n", ksize, iter + 1); FF;
-#endif
+
 	} while (++iter < LIMIT && flag);  // association changes: need to re-cluster
 
 	free(h_kaFlags);
@@ -283,16 +288,19 @@ Error:
 }
 
 // Helper function for obtaining best candidates for kDiameters on a block x block metric
-cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs)
+cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs, int THREADS_PER_BLOCK)
 {
 	cudaError_t cudaStatus;
+	size_t SharedMemBytes;
 	double diamKerStart, diamKerFinish;
 	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
 	xyArrays *d_xya;
 	int	 *d_pka;
 	float* d_kDiameters;
-	size_t SharedMemBytes;
 	MPI_Status status;
+	// Kernel call ** kDiamBlockWithCuda
+	SharedMemBytes = THREADS_PER_BLOCK * 2 * sizeof(float);
+
 
 	//initialize diameters as zero
 	for (int i = 0; i < ksize; i++)
@@ -324,22 +332,15 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	cudaMalloc(&d_pka, N * sizeof(int)); CHKMAL_ERROR;
 	cudaMemcpy(d_pka, pka, N * sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
-	//SharedMemBytes = 4 * THREADS_PER_BLOCK * sizeof(float); // shared memory for flag work
-
-
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
 #ifdef _DEBUG2
 		//TEST print
 		printf("%d, FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
-#endif
-
-		// Kernel call ** kDiamBlockWithCuda
-		SharedMemory = THREADS_PER_BLOCK * 2 * sizeof(float);
+#endif	
 
 #ifdef _DEBUGSM
-		size_t SharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
 		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
 		printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
 		printf("__global__ kDiamBlockWithCuda() call with %d RequestedRegistersPerBlock\n", RequestedRegistersPerBlock); FF;
@@ -347,25 +348,20 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #ifdef _PROF3
 		diamKerStart = omp_get_wtime();
 #endif
+
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "id: %d, kernel kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus));
-			FF;
-			size_t SharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
+			fprintf(stderr, "id: %d, kernel kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus)); FF;
 			size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
 			printf("__global__ kDiamBlockWithCuda() call error!!!\n\n"); FF;
 			printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
 			printf("__global__ kDiamBlockWithCuda() call with %d RequestedRegistersPerBlock\n", RequestedRegistersPerBlock); FF;
 			printf("**********************************************\n\n", RequestedRegistersPerBlock); FF;
-#ifndef _WEAKGPU
-			printf("Add #define _WEAKGPU into Kmeans.h file, recompile project and try again.\n", RequestedRegistersPerBlock); FF;
-#else
-			printf("Add #define _WEAKGPU2 into Kmeans.h file, recompile project and try again.\n", RequestedRegistersPerBlock); FF;
-#endif
 			goto Error;
 		}
-		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
+
+		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERRORDDD;
 #ifdef _PROF3
 		diamKerFinish = omp_get_wtime();
 		if (myid == MASTER) { printf("kDiamBlock %d run-time: %f\n", ksize, diamKerFinish - diamKerStart); FF; }
