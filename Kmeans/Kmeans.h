@@ -36,7 +36,7 @@ void initializeWithGpuReduction();
 //		Heavy "atomic" function delay period for ksize of 2-3
 
 //#define _DEBUGSM // debug kernel shared memory assignments
-//#define _DEBUG1 // temp values
+//#define _DEBUG1 // temp kDiameters values
 //#define _DEBUG2 // low level progress
 //#define _DEBUG4 // diameters final for ksize
 #define _DEBUG5 // QM values test

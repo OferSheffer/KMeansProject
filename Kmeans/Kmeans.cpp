@@ -531,6 +531,7 @@ void initializeWithGpuReduction()
 
 		//// ** reClusterWithCuda  -----		THREADS_PER_BLOCK * sizeof(bool);
 		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * 2 * sizeof(float);  // MAX
+		//// Profiled MAX = 2 * THREADS_PER_BLOCK * sizeof(float);
 		size_t maxRequestedSharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
 
 
@@ -538,8 +539,9 @@ void initializeWithGpuReduction()
 		/***********************************/
 
 		//// ** reClusterWithCuda  -----		THREADS_PER_BLOCK * (1 * sizeof(float) + 3 * sizeof(unsigned int) + 2 * sizeof(int));
-		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));  // MAX
-		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
+		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));  // MAX (40)		                                                            
+		//// Profiled MAX = THREADS_PER_BLOCK * 29
+		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * 29;
 
 		/*printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock); FF;
 		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock); FF;*/
@@ -550,7 +552,7 @@ void initializeWithGpuReduction()
 			_gpuReduction += 1;
 		}
 		else if (props.sharedMemPerBlock > 2*maxRequestedSharedMemBytes &&
-				 props.regsPerBlock > 2*RequestedRegistersPerBlock)
+				 props.regsPerBlock > 2*RequestedRegistersPerBlock && THREADS_PER_BLOCK < props.maxThreadsPerBlock)
 		{
 			_gpuReduction -= 1;
 		}

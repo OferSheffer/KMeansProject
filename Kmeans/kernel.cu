@@ -314,7 +314,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		goto Error;
 	}
 
-	// allocate device memory
+	//// allocate device memory
 	size_t nDataBytes = N * 2 * sizeof(float);  // N x 2 x sizeof(float)
 	xyArrays da_xya;  // device anchor for copying xy-arrays data
 	cudaMalloc(&(da_xya.x), nDataBytes / 2); CHKMAL_ERROR;
@@ -335,6 +335,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
+
 #ifdef _DEBUGV
 		printf("NO_BLOCKS: %d\n", NO_BLOCKS); FF;
 		printf("Proc %d, Attempting FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
@@ -409,8 +410,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		// dynamically allocate further jobs as results are coming in
 		while (resultsCounter < NO_JOBS)
 		{
-			//TEST print
-			//printf("x value %2d, count: %2d\n", x, resultsCounter); fflush(stdout);
+#ifdef _DEBUGV
+			printf("x value %2d, count: %2d\n", x, resultsCounter); fflush(stdout);
+#endif
 			if (numprocs > 1)
 				MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			else
