@@ -349,7 +349,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		diamKerStart = omp_get_wtime();
 #endif
 
-		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
+		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "id: %d, kernel kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus)); FF;
@@ -361,7 +361,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			goto Error;
 		}
 
-		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERRORDDD;
+		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 #ifdef _PROF3
 		diamKerFinish = omp_get_wtime();
 		if (myid == MASTER) { printf("kDiamBlock %d run-time: %f\n", ksize, diamKerFinish - diamKerStart); FF; }
@@ -418,7 +418,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			else
 			{   // only the "MASTER" works
-				kDiamBlockWithCuda << <1, THREADS_PER_BLOCK >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * x], jobs[2 * x + 1]); x++;
+				kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * x], jobs[2 * x + 1]); x++;
 				cudaStatus = cudaGetLastError();
 				if (cudaStatus != cudaSuccess)
 				{
