@@ -1,5 +1,5 @@
 #pragma once
-
+#define __KMEANSH
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
@@ -17,13 +17,12 @@
 //**********************************
 // GPU DEFINITIONS
 //***********************************
-int _gpuReduction;
-//#define _WEAKGPU
-//#define _WEAKGPU2
-
 #define BASE_THREADS_PER_BLOCK 1024
+int THREADS_PER_BLOCK;
+int _gpuReduction;
+size_t SharedMemory;
 
-
+void initializeWithGpuReduction();
 
 //**********************************
 //#define _RUNAFEKA

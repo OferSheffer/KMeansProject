@@ -1,30 +1,18 @@
 #include "Kmeans.h"
 
-
 #define CHKMAL_ERROR	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMalloc failed!"); FF; goto Error; }
 #define CHKMEMCPY_ERROR if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMemcpy failed!"); FF; goto Error; }
 #define CHKSYNC_ERROR	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaDeviceSynchronize failed! Error code %d\n", cudaStatus); FF; goto Error; }
 #define EVENT_ERROR		if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventOperation failed! Error code %d\n", cudaStatus); FF; goto Error; }
 
-// arrSize indices; THREADS_PER_BLOCK * NO_BLOCKS total threads;
-// Each thread in charge of THREAD_BLOCK_SIZE contigeous indices
-
 #define MASTER 0
 #define NEW_JOB 0
 #define STOP_WORKING 1
 
-#ifndef _WEAKGPU
-#define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
-#else
-#ifndef _WEAKGPU2
-#define THREADS_PER_BLOCK 512	// weak gpu
-#endif //_WEAKGPU2
-#define THREADS_PER_BLOCK 128	// very weak gpu
-#endif // not _WEAKGPU
 
 __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArrays* d_xya, int* pka, bool* d_kaFlags, const int size)
 {
-	__shared__ bool dShared_kaFlags[THREADS_PER_BLOCK]; // array to flag changes in point-to-cluster association
+	extern __shared__ bool dShared_kaFlags[]; // array to flag changes in point-to-cluster association
 
 	unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int ltid = threadIdx.x;
@@ -103,7 +91,7 @@ __device__ void AtomicMax(float * const address, const float value)
 __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays* d_xya, int* pka, const int size, const int blkAIdx, const int blkBIdx)
 {
 	// if (blockIdx.x != blkAIdx) return;
-	__shared__ float dShared_SquaredXYAB[THREADS_PER_BLOCK * 2]; // save squared values for reuse
+	extern __shared__ float dShared_SquaredXYAB[]; // save squared values for reuse
 	float XAP, YAP;
 
 	// local shared mem speedup - save squared values for reuse
@@ -157,15 +145,15 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 
 			//TODO: consider load blancing/loop unrolling of some sort
 			// run kernel with a single block, use external block indices to syncronize operations
-			int lastIter = THREADS_PER_BLOCK / 2;
+			int lastIter = blockDim.x / 2;
 			for (int tidO, iter = 1; iter < lastIter; iter++)
 			{
-				tidO = blkBIdx * blockDim.x + (threadIdx.x + iter) % THREADS_PER_BLOCK;
+				tidO = blkBIdx * blockDim.x + (threadIdx.x + iter) % blockDim.x;
 				if (tidO < size && myK == pka[tidO])
 				{
 					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
-					cur = XAP + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % THREADS_PER_BLOCK) + 0]
-						+ YAP + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % THREADS_PER_BLOCK) + 1]
+					cur = XAP + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 0]
+						+ YAP + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 1]
 						- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
 					if (cur > max) max = cur;
 				}
@@ -243,15 +231,15 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 		cudaStatus = cudaMemcpy(h_kCenters.x, kCenters->x, nKCenterBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 		cudaStatus = cudaMemcpy(h_kCenters.y, kCenters->y, nKCenterBytes / 2, cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
-
+		
+		// Kernel call ** reClusterWithCuda
+		SharedMemory = THREADS_PER_BLOCK * sizeof(bool);
 #ifdef _DEBUGSM
 		int SharedMemBytes = THREADS_PER_BLOCK * sizeof(bool);
 		printf("__global__ reClusterWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
 #endif
-		//KernelFunc << <DimGrid, DimBlock, SharedMemBytes >> >n
-
 		if (cudaGetLastError() != cudaSuccess) { printf("Failed before reCluster\n"); FF; }
-		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
+		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK, SharedMemory >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "reClusterWithCuda launch failed: %s\n", cudaGetErrorString(cudaStatus));
@@ -346,6 +334,9 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		//TEST print
 		printf("%d, FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
 #endif
+
+		// Kernel call ** kDiamBlockWithCuda
+		SharedMemory = THREADS_PER_BLOCK * 2 * sizeof(float);
 
 #ifdef _DEBUGSM
 		size_t SharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);

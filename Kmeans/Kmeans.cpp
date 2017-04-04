@@ -16,16 +16,6 @@ for weak processors, uncomment #define _WEAKGPU from the header file
 #define MASTER 0
 
 
-
-#ifndef _WEAKGPU
-#define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
-#else
-#ifndef _WEAKGPU2
-#define THREADS_PER_BLOCK 512	// weak gpu
-#endif //_WEAKGPU2
-#define THREADS_PER_BLOCK 128	// very weak gpu
-#endif // not _WEAKGPU
-
 long  N;			// number of points. e.g. 300000
 int   MAX;			// maximum # of clusters to find. e.g. 300
 int	  LIMIT;		// maximum # of iterations for K-means algorithm. e.g. 2000
@@ -58,30 +48,20 @@ int main(int argc, char *argv[])
 		printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
 		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
 
-
-#ifdef _WEAKGPU
-		printf("----------------------------------------------------------------\n");
-		printf("** NOTE: WeakGPU defined in Kmeans.h (remove for strong GPUs) **\n");
-		printf("----------------------------------------------------------------\n\n");
-#elif _WEAKGPU2
-		printf("----------------------------------------------------------------\n");
-		printf("** NOTE: WeakGPU2 defined in Kmeans.h (remove for strong GPUs) **\n");
-		printf("----------------------------------------------------------------\n\n");
-#endif
-
-
 		printf("*************************************\n");
-		printf("******    Kmeans algorithm    *******\n");
-		printf("******  Author: Ofer Sheffer  *******\n");
+		printf("*****                          ******\n");
+		printf("*****     Kmeans algorithm     ******\n");
+		printf("*****   Author: Ofer Sheffer   ******\n");
+		printf("*****                          ******\n");
 		printf("*************************************\n");
+		
 
 #ifdef _DEBUGV
-		printf(FILE_NAME"\n"); FF;
+		printf("\n"FILE_NAME"\n"); FF;
 #endif
+
 		readPointsFromFile();			 // init xya with data
 		printf("N=%ld, Max=%d, LIMIT=%d, QM=%f\n\n\n", N, MAX, LIMIT, QM); FF;
-
-
 
 		if (numprocs > 1)
 			MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
@@ -124,7 +104,7 @@ int main(int argc, char *argv[])
 			size_t nBytes = sizeof(xya);
 
 			// *** kCentersWithCuda ***
-			_gpuReduction = getGpuReduction(new kCentersWithCuda);
+			initializeWithGpuReduction();
 			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "kCentersWithCuda failed!"); FF;
@@ -520,36 +500,64 @@ void printArrTestPrint(int myid, float* arr, int size, const char* arrName)
 }
 
 
-int getGpuReduction()
+void initializeWithGpuReduction()
 {
-	///*** Current GPU Memory requirements  ***/
-
-	//// ****   SharedMemBytes   ****
-	/********************************/
-
-	//// ----- reClusterWithCuda -----
-	////// THREADS_PER_BLOCK * sizeof(bool);
-	//// ----- kDiamBlockWithCuda -----
-	////// 2 * THREADS_PER_BLOCK * sizeof(float);  // MAX
-	//// ***  Max: kDiamBlockWithCuda  ***
-	size_t maxRequestedSharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
-
-
-	//// ****   RegistersPerBlock   ****
-	/***********************************/
-
-	//// ----- reClusterWithCuda -----
-	////// THREADS_PER_BLOCK * (1 * sizeof(float) + 3 * sizeof(unsigned int) + 2 * sizeof(int));
-	//// ----- kDiamBlockWithCuda -----
-	////// THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));  // MAX
-	//// ***  Max: kDiamBlockWithCuda  ***
-	size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
-
+	/* replacing
+		#ifndef _WEAKGPU
+		#define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
+		#else
+		#ifndef _WEAKGPU2
+		#define THREADS_PER_BLOCK 512	// weak gpu
+		#endif //_WEAKGPU2
+		#define THREADS_PER_BLOCK 128	// very weak gpu
+		#endif // not _WEAKGPU
+	*/
 	int devID;
 	cudaDeviceProp props;
 	cudaGetDevice(&devID);
 	cudaGetDeviceProperties(&props, devID);
 
-	printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
-	printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
+	///*** Current GPU Memory requirements  (unprofiled -- my estimations) ***/
+	while (true)
+	{
+		THREADS_PER_BLOCK = BASE_THREADS_PER_BLOCK / pow(2, _gpuReduction);
+
+		//// ****   SharedMemBytes   ****
+		/********************************/
+
+		//// ** reClusterWithCuda  -----		THREADS_PER_BLOCK * sizeof(bool);
+		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * 2 * sizeof(float);  // MAX
+		size_t maxRequestedSharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
+
+
+		//// ****   RegistersPerBlock   ****
+		/***********************************/
+
+		//// ** reClusterWithCuda  -----		THREADS_PER_BLOCK * (1 * sizeof(float) + 3 * sizeof(unsigned int) + 2 * sizeof(int));
+		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));  // MAX
+		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
+
+		printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
+		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
+
+		if (props.sharedMemPerBlock < maxRequestedSharedMemBytes || 
+			props.regsPerBlock < RequestedRegistersPerBlock)
+		{
+			_gpuReduction += 1;
+		}
+		else if (props.sharedMemPerBlock > 2*maxRequestedSharedMemBytes &&
+				 props.regsPerBlock > 2*RequestedRegistersPerBlock)
+		{
+			_gpuReduction -= 1;
+		}
+		else
+		{
+			printf("  Kernel/Gpu run with 2^%d reduction factor\n"
+				   "  Per block Shared memory usage:		%lu/%lu bytes\n"
+				   "  Per block register usage (estimated):	%d/%d\n\n", _gpuReduction, 
+																	maxRequestedSharedMemBytes, props.sharedMemPerBlock, 
+																	RequestedRegistersPerBlock, props.regsPerBlock); FF;
+			break;
+		}
+	}	// while
 }
