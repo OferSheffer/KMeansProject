@@ -188,9 +188,9 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 	// memory initializations
 	size_t nDataBytes = N * 2 * sizeof(float);  // N x 2 x sizeof(float)
 	size_t nKCenterBytes = ksize * 2 * sizeof(float);
-	bool	 *h_kaFlags;
+	bool *h_kaFlags;
 	int	 *d_pka;					// array to associate xya points with their closest cluster
-	bool     *d_kaFlags;				// array to flags changes in point-to-cluster association	
+	bool *d_kaFlags;				// array to flags changes in point-to-cluster association	
 	cudaStatus = cudaSetDevice(0);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?"); FF;

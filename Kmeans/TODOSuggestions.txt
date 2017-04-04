@@ -9,12 +9,6 @@
    (maybe load more data and run it - 
     3+ blocks at a time instead of 2)
 
-5. what's faster - 
-   int nblocks = (n % nthreads == 0)? n / nthreads : n / nthreads +1;
-   or
-   int nblocks = ceil(n / nthreads); // def readable
-   ??
-
 6. CUDA resource review (for max occupancy):
 ****   CUDA Occupancy calculator   ****
 		1.) Select Compute Capability (click):	5.0
