@@ -17,8 +17,13 @@
 //**********************************
 // GPU DEFINITIONS
 //***********************************
+int _gpuReduction;
 //#define _WEAKGPU
 //#define _WEAKGPU2
+
+#define BASE_THREADS_PER_BLOCK 1024
+
+
 
 //**********************************
 //#define _RUNAFEKA

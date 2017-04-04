@@ -15,10 +15,15 @@ for weak processors, uncomment #define _WEAKGPU from the header file
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
 
+
+
 #ifndef _WEAKGPU
 #define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
 #else
-#define THREADS_PER_BLOCK 128	// weak gpu
+#ifndef _WEAKGPU2
+#define THREADS_PER_BLOCK 512	// weak gpu
+#endif //_WEAKGPU2
+#define THREADS_PER_BLOCK 128	// very weak gpu
 #endif // not _WEAKGPU
 
 long  N;			// number of points. e.g. 300000
@@ -52,6 +57,8 @@ int main(int argc, char *argv[])
 		printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
 		printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
 		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
+
+
 #ifdef _WEAKGPU
 		printf("----------------------------------------------------------------\n");
 		printf("** NOTE: WeakGPU defined in Kmeans.h (remove for strong GPUs) **\n");
@@ -117,6 +124,7 @@ int main(int argc, char *argv[])
 			size_t nBytes = sizeof(xya);
 
 			// *** kCentersWithCuda ***
+			_gpuReduction = getGpuReduction(new kCentersWithCuda);
 			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "kCentersWithCuda failed!"); FF;
@@ -512,3 +520,36 @@ void printArrTestPrint(int myid, float* arr, int size, const char* arrName)
 }
 
 
+int getGpuReduction()
+{
+	///*** Current GPU Memory requirements  ***/
+
+	//// ****   SharedMemBytes   ****
+	/********************************/
+
+	//// ----- reClusterWithCuda -----
+	////// THREADS_PER_BLOCK * sizeof(bool);
+	//// ----- kDiamBlockWithCuda -----
+	////// 2 * THREADS_PER_BLOCK * sizeof(float);  // MAX
+	//// ***  Max: kDiamBlockWithCuda  ***
+	size_t maxRequestedSharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
+
+
+	//// ****   RegistersPerBlock   ****
+	/***********************************/
+
+	//// ----- reClusterWithCuda -----
+	////// THREADS_PER_BLOCK * (1 * sizeof(float) + 3 * sizeof(unsigned int) + 2 * sizeof(int));
+	//// ----- kDiamBlockWithCuda -----
+	////// THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));  // MAX
+	//// ***  Max: kDiamBlockWithCuda  ***
+	size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
+
+	int devID;
+	cudaDeviceProp props;
+	cudaGetDevice(&devID);
+	cudaGetDeviceProperties(&props, devID);
+
+	printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
+	printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
+}
