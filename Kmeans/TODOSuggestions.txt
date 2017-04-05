@@ -57,10 +57,6 @@
 output can be fetched with clGetProgramBuildInfo (CL_PROGRAM_BUILD_LOG).
 ptxas info    : Used 16 registers, 36+8 bytes smem, 180 bytes cmem[1]
 
-10. The number of registers available per thread is equal to (by Mark Harris):
-N_registersPerMultiprocessor / CEIL(N_concurrentBlocks*N_threadsPerBlock, 64)
-100% occupancy really implies a 10 registers/thread limit. - nogradi + Mark (2007)
-
 11. Exact register usages (avidday):
  Pass the -Xptxas="-v" option to nvcc, and the compiler will emit the exact
 register usages of the compiled kernel. It is impossible to estimate register
@@ -73,3 +69,11 @@ the kernel. Usually it will result in more spilling to local memory
 
 
 12. fix the single process test so it only runs once/twice and not so many times
+
+13. is there value in loading less data from host to device?
+
+14. Big impact! less blocks: rework to allow blocks to do more work. (1 kernel now does 2 by 2)
+
+15. Missing: handling of super large data: currently, master puts it all in the kCenters kernel
+
+

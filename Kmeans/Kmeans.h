@@ -18,9 +18,6 @@
 // GPU DEFINITIONS
 //***********************************
 #define BASE_THREADS_PER_BLOCK 1024
-//int THREADS_PER_BLOCK;
-//int _gpuReduction;
-//size_t SharedMemBytes;
 
 void initializeWithGpuReduction();
 
