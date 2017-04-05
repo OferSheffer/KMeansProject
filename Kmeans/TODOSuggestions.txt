@@ -1,13 +1,8 @@
 2. Reduce CUDA "diameter in blocks" load times by loading exact block data into GPU.
-2.1. am I loading the info many times? or just once at the beginning
 2.2. am I unloading all the info many times?
 -- perhaps its ok to load all the data at the beginning
 -- but then write out only the relevant data to its proper location
 -- am I writing out data to a location or just the KDiameter-values?
-
-4. consider merging operations on the Kernel
-   (maybe load more data and run it - 
-    3+ blocks at a time instead of 2)
 
 6. CUDA resource review (for max occupancy):
 ****   CUDA Occupancy calculator   ****
@@ -17,10 +12,8 @@
 	
 		2.) Enter your resource usage:	
 		Threads Per Block	1024
-		Registers Per Thread	32
+		Registers Per Thread	32!!
 		Shared Memory Per Block (bytes)	2048
-	
-		(Don't edit anything below this line)	
 	
 		3.) GPU Occupancy Data is displayed here and in the graphs:	
 		Active Threads per Multiprocessor	2048
@@ -35,10 +28,8 @@
 	
 		2.) Enter your resource usage:	
 		Threads Per Block	512
-		Registers Per Thread	16
+		Registers Per Thread	16/20!!
 		Shared Memory Per Block (bytes)	1024
-	
-		(Don't edit anything below this line)	
 	
 		3.) GPU Occupancy Data is displayed here and in the graphs:	
 		Active Threads per Multiprocessor	1536

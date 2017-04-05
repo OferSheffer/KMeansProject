@@ -454,12 +454,29 @@ void getNewPointKCenterAssociation(long i, int ksize)
 	}
 }
 
+//int* initJobArray(int NO_BLOCKS, int fact)
+//{
+//	int* jobs = (int*)malloc(2 * fact * sizeof(int));
+//	int jidx = 0;
+//	for (int i = 0; i < NO_BLOCKS; i++)
+//		for (int j = 0; j < NO_BLOCKS; j++)
+//		{
+//			if (i <= j)
+//			{
+//				jobs[jidx++] = i;
+//				jobs[jidx++] = j;
+//			}
+//
+//		}
+//	return jobs;
+//}
+
 int* initJobArray(int NO_BLOCKS, int fact)
 {
 	int* jobs = (int*)malloc(2 * fact * sizeof(int));
 	int jidx = 0;
-	for (int i = 0; i < NO_BLOCKS; i++)
-		for (int j = 0; j < NO_BLOCKS; j++)
+	for (int i = 0; i < NO_BLOCKS; i+=2)
+		for (int j = 0; j < NO_BLOCKS; j+=2)
 		{
 			if (i <= j)
 			{
@@ -470,6 +487,7 @@ int* initJobArray(int NO_BLOCKS, int fact)
 		}
 	return jobs;
 }
+
 
 void printArrTestPrint(int myid, float* arr, int size, const char* arrName)
 {
@@ -506,16 +524,6 @@ void printArrTestPrint(int myid, float* arr, int size, const char* arrName)
 
 void initializeWithGpuReduction()
 {
-	/* replacing
-		#ifndef _WEAKGPU
-		#define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
-		#else
-		#ifndef _WEAKGPU2
-		#define THREADS_PER_BLOCK 512	// weak gpu
-		#endif //_WEAKGPU2
-		#define THREADS_PER_BLOCK 128	// very weak gpu
-		#endif // not _WEAKGPU
-	*/
 	int devID;
 	cudaDeviceProp props;
 	cudaGetDevice(&devID);
@@ -541,7 +549,7 @@ void initializeWithGpuReduction()
 		//// ** reClusterWithCuda  -----		THREADS_PER_BLOCK * (1 * sizeof(float) + 3 * sizeof(unsigned int) + 2 * sizeof(int));
 		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));  // MAX (40)		                                                            
 		//// Profiled MAX = THREADS_PER_BLOCK * 29
-		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * 29;
+		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * 37; // 32, 29
 
 		/*printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock); FF;
 		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock); FF;*/
@@ -560,14 +568,15 @@ void initializeWithGpuReduction()
 		{
 			// TODO testing 512 threads
 			//THREADS_PER_BLOCK = BASE_THREADS_PER_BLOCK / 2;
-
-
+			//maxRequestedSharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
+			//RequestedRegistersPerBlock = THREADS_PER_BLOCK * 37; // 32, 29
 
 			printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
+			//printf("> concurrentKernels? %d\n", props.concurrentKernels); FF;
 			printf("  Kernel/Gpu run with 2^%d reduction factor\n"
 				"  THREADS_PER_BLOCK:                         %7d /%7d\n"
 				"  Per block Shared memory usage:             %7lu /%7lu bytes\n"
-				"  Per block register usage (estimated):      %7d /%7d\n\n", _gpuReduction, THREADS_PER_BLOCK, props.maxThreadsPerBlock,
+				"  Per block register usage (profiled):       %7d /%7d\n\n", _gpuReduction, THREADS_PER_BLOCK, props.maxThreadsPerBlock,
 																	maxRequestedSharedMemBytes, props.sharedMemPerBlock, 
 																	RequestedRegistersPerBlock, props.regsPerBlock); FF;
 			break;
