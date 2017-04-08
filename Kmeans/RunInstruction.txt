@@ -50,3 +50,48 @@ Quality work complete:   ***  0.124411  *** Smaller than 0.500000?  * 1 *
 
 *********************************************
 run-time: 270.511273
+
+----------------------------------------------
+----------------------------------------------
+pre play with global reads: Occupancy 50%, Registers per Thread: 37
+-------------------------------------------------------------------
+> Compute 5.0 CUDA device: [GeForce 830M]
+  Kernel/Gpu run with 2^0 reduction factor
+  THREADS_PER_BLOCK:                            1024 /   1024
+  Per block Shared memory usage:                8192 /  49152 bytes
+  Per block register usage (profiled):         37888 /  65536
+
+                *************************************
+                *****                          ******
+                *****     Kmeans algorithm     ******
+                *****   Author: Ofer Sheffer   ******
+                *****                          ******
+                *************************************
+                N=100000, Max=4, LIMIT=20, QM=0.500000
+
+
+
+Quality work complete:   ***  2.020083  *** Smaller than 0.500000?  * 0 *
+
+*********************************************
+run-time: 18.645920
+
+Quality work complete:   ***  1.859849  *** Smaller than 0.500000?  * 0 *
+
+*********************************************
+run-time: 36.705443
+
+Quality work complete:   ***  0.151798  *** Smaller than 0.500000?  * 1 *
+
+*********************************************
+run-time: 47.279333
+Master 0 - kCentersX0-3: -0.497127, -0.500514, 99.499268, 99.500381
+Master 0 - kCentersY0-3: -0.501050, 99.498711, 99.501183, -0.497691
+********************************************************
+
+
+Quality work complete:   ***  0.151798  *** Smaller than 0.500000?  * 1 *
+
+*********************************************
+run-time: 47.279738
+Press any key to continue . . .
