@@ -1,5 +1,4 @@
 #pragma once
-
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
@@ -17,22 +16,19 @@
 //**********************************
 // GPU DEFINITIONS
 //***********************************
-//#define _WEAKGPU
-//#define _WEAKGPU2
+#define BASE_THREADS_PER_BLOCK 1024
+
+void initializeWithGpuReduction();
 
 //**********************************
 //#define _RUNAFEKA
 //#define _DEBUGV		// verbose
 #define _TIME			// time output
-#define _TIMEK		// time per ksize
+#define _TIMEK			// time per ksize
 //#define _PROF3		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
-// 3 x 40sec ~= 120 --> look to improve this one for great changes
-// Option B: balances work (threads finish symultaneously)
-//		Halves the time for large K values.
-//		Heavy "atomic" function delay period for ksize of 2-3
 
 //#define _DEBUGSM // debug kernel shared memory assignments
-//#define _DEBUG1 // temp values
+//#define _DEBUG1 // temp kDiameters values
 //#define _DEBUG2 // low level progress
 //#define _DEBUG4 // diameters final for ksize
 #define _DEBUG5 // QM values test
@@ -41,16 +37,14 @@
 #define INFINITY 1000000000000000
 #endif
 
-
-
 // SoA: reduce load/store operations
 typedef struct _xyArrays {
 	float *x;
 	float *y;
 } xyArrays;
 
-cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* pka, long N, int LIMIT);
-cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs);
+cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* pka, long N, int LIMIT, int THREADS_PER_BLOCK);
+cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int* pka, long N, int myid, int numprocs, int THREADS_PER_BLOCK);
 
 void readPointsFromFile();
 
@@ -70,3 +64,4 @@ void getNewPointKCenterAssociation(long i, int ksize);
 int* initJobArray(int NO_BLOCKS, int fact);
 
 void printArrTestPrint(int myid, float* arr, int size, const char* arrName);
+

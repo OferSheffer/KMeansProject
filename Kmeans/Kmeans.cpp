@@ -1,10 +1,6 @@
 /*
 Author: Ofer Sheffer, 1 April 2017
 
-Important note:
-----------------
-for weak processors, uncomment #define _WEAKGPU from the header file
-
 */
 
 #include "Kmeans.h"
@@ -15,11 +11,11 @@ for weak processors, uncomment #define _WEAKGPU from the header file
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
 
-#ifndef _WEAKGPU
-#define THREADS_PER_BLOCK 1024  // replacement for THREAD_BLOCK_SIZE or blockDim.x
-#else
-#define THREADS_PER_BLOCK 128	// weak gpu
-#endif // not _WEAKGPU
+/////////// GPU controls
+int THREADS_PER_BLOCK;
+int _gpuReduction;
+size_t SharedMemBytes;
+
 
 long  N;			// number of points. e.g. 300000
 int   MAX;			// maximum # of clusters to find. e.g. 300
@@ -45,48 +41,39 @@ int main(int argc, char *argv[])
 
 	if (myid == MASTER)
 	{
-		int devID;
-		cudaDeviceProp props;
-		cudaGetDevice(&devID);
-		cudaGetDeviceProperties(&props, devID);
-		printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
-		printf("  Total amount of shared memory per block:       %lu bytes\n", props.sharedMemPerBlock);
-		printf("  Total number of registers available per block: %d\n\n", props.regsPerBlock);
-#ifdef _WEAKGPU
-		printf("----------------------------------------------------------------\n");
-		printf("** NOTE: WeakGPU defined in Kmeans.h (remove for strong GPUs) **\n");
-		printf("----------------------------------------------------------------\n\n");
-#elif _WEAKGPU2
-		printf("----------------------------------------------------------------\n");
-		printf("** NOTE: WeakGPU2 defined in Kmeans.h (remove for strong GPUs) **\n");
-		printf("----------------------------------------------------------------\n\n");
-#endif
+		initializeWithGpuReduction();
 
+		printf("\t\t*************************************\n");
+		printf("\t\t*****                          ******\n");
+		printf("\t\t*****     Kmeans algorithm     ******\n");
+		printf("\t\t*****   Author: Ofer Sheffer   ******\n");
+		printf("\t\t*****                          ******\n");
+		printf("\t\t*************************************\n");
 
-		printf("*************************************\n");
-		printf("******    Kmeans algorithm    *******\n");
-		printf("******  Author: Ofer Sheffer  *******\n");
-		printf("*************************************\n");
 
 #ifdef _DEBUGV
-		printf(FILE_NAME"\n"); FF;
+		printf("\n" FILE_NAME "\n"); FF;
 #endif
+
 		readPointsFromFile();			 // init xya with data
-		printf("N=%ld, Max=%d, LIMIT=%d, QM=%f\n\n\n", N, MAX, LIMIT, QM); FF;
-
-
+		printf("\t\tN=%ld, Max=%d, LIMIT=%d, QM=%f\n\n\n", N, MAX, LIMIT, QM); FF;
 
 		if (numprocs > 1)
+		{
 			MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
+			MPI_Bcast(&THREADS_PER_BLOCK, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
+		}
 	}
 	else
 	{
 		MPI_Bcast(&N, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
+		MPI_Bcast(&THREADS_PER_BLOCK, 1, MPI_LONG, MASTER, MPI_COMM_WORLD);
 		mallocSoA(&xya, N);
 	}
 	initClusterAssociationArrays();  // no cluster (-1)
 
-	const int NO_BLOCKS = (N % THREADS_PER_BLOCK == 0) ? N / THREADS_PER_BLOCK : N / THREADS_PER_BLOCK + 1;
+	const int NO_BLOCKS = ceil(N / (float)THREADS_PER_BLOCK);
+
 	const int THREAD_BLOCK_SIZE = THREADS_PER_BLOCK;
 
 #ifdef _TIME
@@ -117,9 +104,9 @@ int main(int argc, char *argv[])
 			size_t nBytes = sizeof(xya);
 
 			// *** kCentersWithCuda ***
-			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT);
+			cudaError_t cudaStatus = kCentersWithCuda(kCenters, ksize, xya, pka, N, LIMIT, THREADS_PER_BLOCK);
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "kCentersWithCuda failed!"); FF;
+				fprintf(stderr, "kCentersWithCuda failed!\n"); FF;
 				freeSoA(xya);
 				free(pka);
 				free(kDiameters);
@@ -146,9 +133,9 @@ int main(int argc, char *argv[])
 			if (numprocs > 1)
 				MPI_Bcast(pka, N, MPI_INT, MASTER, MPI_COMM_WORLD);
 
-			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
+			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs, THREADS_PER_BLOCK);
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "kCentersWithCuda failed!");
+				fprintf(stderr, "kDiametersWithCuda failed!\n"); FF;
 				return 1;
 			}
 
@@ -202,7 +189,7 @@ int main(int argc, char *argv[])
 
 				cudaStatus = cudaDeviceReset();
 				if (cudaStatus != cudaSuccess) {
-					fprintf(stderr, "cudaDeviceReset failed!");
+					fprintf(stderr, "cudaDeviceReset failed!\n"); FF;
 					return 1;
 				}
 
@@ -212,7 +199,7 @@ int main(int argc, char *argv[])
 
 			cudaStatus = cudaDeviceReset();
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaDeviceReset failed!");
+				fprintf(stderr, "cudaDeviceReset failed!\n"); FF;
 				return 1;
 			}
 		}
@@ -242,16 +229,16 @@ int main(int argc, char *argv[])
 
 
 			//getKQuality();
-			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs);
+			cudaStatus = kDiametersWithCuda(kDiameters, ksize, xya, pka, N, myid, numprocs, THREADS_PER_BLOCK);
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "kCentersWithCuda failed!");
+				fprintf(stderr, "kDiametersWithCuda failed!\n"); FF;
 				return 1;
 			}
 
 
 			cudaStatus = cudaDeviceReset();
 			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaDeviceReset failed!");
+				fprintf(stderr, "cudaDeviceReset failed!\n"); FF;
 				return 1;
 			}
 
@@ -301,10 +288,6 @@ void initClusterAssociationArrays()
 }
 
 
-
-
-
-
 void populateSoA(FILE* fp)
 {
 	mallocSoA(&xya, N);
@@ -324,12 +307,8 @@ bool ompReduceCudaFlags(bool* flags, int size)
 #pragma omp parallel for reduction(|:flag)
 	for (int i = 0; i < size; i++)
 	{
-		//TODO: quicktest
-		//printf("%d, %d\n", omp_get_thread_num(), flags[i]);
 		flag |= flags[i];
 	}
-	//TODO: quicktest
-	//printf("flag: %d!\n", flag);
 	return flag;
 }
 
@@ -462,12 +441,31 @@ void getNewPointKCenterAssociation(long i, int ksize)
 	}
 }
 
+//Single block jobs (old implementation)
+/*
+int* initJobArray(int NO_BLOCKS, int fact)
+{
+int* jobs = (int*)malloc(2 * fact * sizeof(int));
+int jidx = 0;
+for (int i = 0; i < NO_BLOCKS; i++)
+for (int j = 0; j < NO_BLOCKS; j++)
+{
+if (i <= j)
+{
+jobs[jidx++] = i;
+jobs[jidx++] = j;
+}
+
+}
+return jobs;
+} */
+
 int* initJobArray(int NO_BLOCKS, int fact)
 {
 	int* jobs = (int*)malloc(2 * fact * sizeof(int));
 	int jidx = 0;
-	for (int i = 0; i < NO_BLOCKS; i++)
-		for (int j = 0; j < NO_BLOCKS; j++)
+	for (int i = 0; i < NO_BLOCKS; i += 2)
+		for (int j = 0; j < NO_BLOCKS; j += 2)
 		{
 			if (i <= j)
 			{
@@ -478,6 +476,7 @@ int* initJobArray(int NO_BLOCKS, int fact)
 		}
 	return jobs;
 }
+
 
 void printArrTestPrint(int myid, float* arr, int size, const char* arrName)
 {
@@ -511,4 +510,64 @@ void printArrTestPrint(int myid, float* arr, int size, const char* arrName)
 	}
 }
 
+
+void initializeWithGpuReduction()
+{
+	int devID;
+	cudaDeviceProp props;
+	cudaGetDevice(&devID);
+	cudaGetDeviceProperties(&props, devID);
+
+	///*** Current GPU Memory requirements  (unprofiled -- my estimations) ***/
+	while (true)
+	{
+		THREADS_PER_BLOCK = BASE_THREADS_PER_BLOCK / powf(2, _gpuReduction);
+
+		//// ****   SharedMemBytes   ****
+		/********************************/
+
+		//// ** reClusterWithCuda  -----		THREADS_PER_BLOCK * sizeof(bool);
+		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * 2 * sizeof(float);  // MAX
+		//// Profiled MAX = 2 * THREADS_PER_BLOCK * sizeof(float);
+		size_t maxRequestedSharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
+
+
+		//// ****   RegistersPerBlock   ****
+		/***********************************/
+
+		//// ** reClusterWithCuda  -----		THREADS_PER_BLOCK * (1 * sizeof(float) + 3 * sizeof(unsigned int) + 2 * sizeof(int));
+		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));  // MAX (40)		                                                            
+		//// Profiled MAX = THREADS_PER_BLOCK * 37
+		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * 37;
+
+
+		if (props.sharedMemPerBlock < maxRequestedSharedMemBytes ||
+			props.regsPerBlock < RequestedRegistersPerBlock)
+		{
+			_gpuReduction += 1;
+		}
+		else if (props.sharedMemPerBlock > 2 * maxRequestedSharedMemBytes &&
+			props.regsPerBlock > 2 * RequestedRegistersPerBlock && THREADS_PER_BLOCK < props.maxThreadsPerBlock)
+		{
+			_gpuReduction -= 1;
+		}
+		else
+		{
+			// Testing with less threads:
+			// THREADS_PER_BLOCK = BASE_THREADS_PER_BLOCK / 4;
+			// maxRequestedSharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
+			// RequestedRegistersPerBlock = THREADS_PER_BLOCK * 37; // 32, 29
+
+			printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
+			//printf("> concurrentKernels? %d\n", props.concurrentKernels); FF;
+			printf("  Kernel/Gpu run with 2^%d reduction factor\n"
+				"  THREADS_PER_BLOCK:                         %7d /%7d\n"
+				"  Per block Shared memory usage:             %7lu /%7lu bytes\n"
+				"  Per block register usage (profiled):       %7d /%7d\n\n", _gpuReduction, THREADS_PER_BLOCK, props.maxThreadsPerBlock,
+				maxRequestedSharedMemBytes, props.sharedMemPerBlock,
+				RequestedRegistersPerBlock, props.regsPerBlock); FF;
+			break;
+		}
+	}	// while
+}
 
