@@ -567,13 +567,16 @@ void initializeWithGpuReduction()
 				printf("  CUDA kernel runs will be serialized\n\n"); FF;
 			}
 
-			printf("> Compute %d.%d CUDA device: [%s] (with %d multi-processors)\n", props.major, props.minor, props.name, props.multiProcessorCount); FF;
+			//printf("> Compute %d.%d CUDA device: [%s] (with %d multi-processors)\n", props.major, props.minor, props.name, props.multiProcessorCount); FF;
+			printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
 
 			//printf("> concurrentKernels? %d\n", props.concurrentKernels); FF;
 			printf("  Kernel/Gpu run with 2^%d reduction factor\n"
+				"  Concurrent Kernels used:                   %7d\n"
 				"  THREADS_PER_BLOCK:                         %7d /%7d\n"
 				"  Per block Shared memory usage:             %7lu /%7lu bytes\n"
-				"  Per block register usage (profiled):       %7d /%7d\n\n", _gpuReduction, THREADS_PER_BLOCK, props.maxThreadsPerBlock,
+				"  Per block register usage (profiled):       %7d /%7d\n\n", _gpuReduction, ((props.concurrentKernels)? 2:1),
+				THREADS_PER_BLOCK, props.maxThreadsPerBlock,
 				maxRequestedSharedMemBytes, props.sharedMemPerBlock,
 				RequestedRegistersPerBlock, props.regsPerBlock); FF;
 			break;
