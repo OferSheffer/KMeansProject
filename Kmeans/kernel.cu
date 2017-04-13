@@ -393,25 +393,6 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #endif
 	}
 
-	//TODO: use MASTER GPU to asynchronously run first job and poll for completion to give new jobs
-	/*
-	//async initializations for MASTER
-	cudaEvent_t myJobIsDone;
-	cudaStatus = cudaEventCreateWithFlags(&myJobIsDone, cudaEventDisableTiming); EVENT_ERROR;
-	cudaEventDestroy(myJobIsDone); EVENT_ERROR;
-
-
-	//cudaMemcpyAsync(d_a, a, nbytes, cudaMemcpyHostToDevice, 0);
-	//kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
-	//cudaMemcpyAsync(a, d_a, nbytes, cudaMemcpyDeviceToHost, 0);
-	//cudaEventRecord(myJobIsDone, 0);
-	//
-	//while (cudaEventQuery(stop) == cudaErrorNotReady) {
-	//TODO:
-	//non-blocking recv from slaves;
-	// }
-	*/
-
 	///////////////////////////////////////////////////////////////
 	//MASTER-SLAVES & streams
 	float* kDiametersTempAnswer, *kDiametersAnswer;

@@ -67,4 +67,24 @@ the kernel. Usually it will result in more spilling to local memory
 
 15. Missing: handling of super large data: currently, master puts it all in the kCenters kernel
 
+16. //TODO: use MASTER GPU to asynchronously run first job and poll for completion to give new jobs
+	/*
+	//async initializations for MASTER
+	cudaEvent_t myJobIsDone;
+	cudaStatus = cudaEventCreateWithFlags(&myJobIsDone, cudaEventDisableTiming); EVENT_ERROR;
+	cudaEventDestroy(myJobIsDone); EVENT_ERROR;
+
+
+	//cudaMemcpyAsync(d_a, a, nbytes, cudaMemcpyHostToDevice, 0);
+	//kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
+	//cudaMemcpyAsync(a, d_a, nbytes, cudaMemcpyDeviceToHost, 0);
+	//cudaEventRecord(myJobIsDone, 0);
+	//
+	//while (cudaEventQuery(stop) == cudaErrorNotReady) {
+	//TODO:
+	//non-blocking recv from slaves;
+	// }
+	*/
+
+	17. I'm still getting occupancy 50% with SM2 appearing to have no work (My Maxwell).
 
