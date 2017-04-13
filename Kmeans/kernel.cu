@@ -473,32 +473,30 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			////////////////////////////////////////
 			// only the "MASTER" works
 			{ 
-#ifdef _DEBUG1
-				printf("Proc %d, working on jobForBlocks %2d, %2d (stream %d)\n", myid, jobs[2 * x], jobs[2 * x + 1], streamIdx); fflush(stdout);
-#endif
-				numJobsCounter = 0;
-				kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * x], jobs[2 * x + 1]); x++;
-				streamIdx = (streamIdx + 1) % NUM_CONCUR_KERNELS;
-				numJobsCounter++;
-				if (x < NO_JOBS)
+				streamIdx = 0;
+				if (resultsCounter + NUM_CONCUR_KERNELS - 1 < NO_JOBS) numJobsCounter = NUM_CONCUR_KERNELS;
+				else numJobsCounter = NO_JOBS - x;
+
+				for (int i = 0; i < numJobsCounter; i++)
 				{
-					kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * x], jobs[2 * x + 1]); x++;
+#ifdef _DEBUG1
+					printf("Proc %d, working on jobForBlocks %2d, %2d (stream %d)\n", myid, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1], streamIdx); fflush(stdout);
+#endif
+					kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1]);
+					resultsCounter++;
 					cudaStatus = cudaGetLastError();
 					if (cudaStatus != cudaSuccess)
 					{
 						fprintf(stderr, "id: %d, kernel kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus)); FF;
 						goto Error;
 					}
-					streamIdx = (streamIdx + 1) % NUM_CONCUR_KERNELS; 
-					numJobsCounter++;
+					streamIdx = (streamIdx + 1) % NUM_CONCUR_KERNELS;
 				}
-
+				
 			}
 			cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 
 			cudaStatus = cudaMemcpy(kDiametersTempAnswer, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-
-			resultsCounter += numJobsCounter;
 
 			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
 
