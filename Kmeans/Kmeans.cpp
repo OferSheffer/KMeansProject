@@ -584,7 +584,7 @@ void initializeWithGpuReduction()
 				"  Concurrent Kernels used:                   %7d\n"
 				"  THREADS_PER_BLOCK:                         %7d /%7d\n"
 				"  Per block Shared memory usage:             %7lu /%7lu bytes\n"
-				"  Per block register usage (profiled):       %7d /%7d\n\n", _gpuReduction, ((props.concurrentKernels)? 2:1),
+				"  Per block register usage (profiled):       %7d /%7d\n\n", _gpuReduction, ((props.concurrentKernels)? NUM_CONCUR_KERNELS:1),
 				THREADS_PER_BLOCK, props.maxThreadsPerBlock,
 				maxRequestedSharedMemBytes, props.sharedMemPerBlock,
 				RequestedRegistersPerBlock, props.regsPerBlock); FF;

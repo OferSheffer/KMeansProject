@@ -494,24 +494,23 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				}
 				
 			}
-			cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 
-			cudaStatus = cudaMemcpy(kDiametersTempAnswer, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-
-			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
-
+			//////////////////////////////////////////////////
+			// Sync device, copy results and adjust kDiameters
+			{
+				cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
+				cudaStatus = cudaMemcpy(kDiametersTempAnswer, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
+				ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
+			}
 
 #ifdef _DEBUG1
 			//TEST kDiameters 
-
-			//TODO rm commenting for runtime
-			//printf("\nMaster values after MaxVectors with source %d !!\n", status.MPI_SOURCE); FF;
 			printf("\nMaster values after MaxVectors with source %d !!\n", MASTER); FF;
 			printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 			printf("***********************************************\n\n"); FF;
 #endif
 
-
+			///////////////////////////////////////////
 			// if needed, send next job and increase x
 			if (numprocs > 1)
 			{
