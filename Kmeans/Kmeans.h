@@ -17,8 +17,7 @@
 // GPU DEFINITIONS
 //***********************************
 #define BASE_THREADS_PER_BLOCK 1024
-#define NUM_KERNELS 2	// concurrent kernels
-#define NUM_STREAMS 3   // concurrent kernels + 1
+#define NUM_CONCUR_KERNELS 2	// concurrent kernels
 
 void initializeWithGpuReduction();
 
@@ -27,9 +26,8 @@ void initializeWithGpuReduction();
 //#define _DEBUGV		// verbose
 #define _TIME			// time output
 #define _TIMEK			// time per ksize
-//#define _PROF3		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
+//#define _PROF_DIAM_BLOCK_KERNEL		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
 
-//#define _DEBUGSM // debug kernel shared memory assignments
 //#define _DEBUG1 // temp kDiameters values
 //#define _DEBUG2 // low level progress
 //#define _DEBUG4 // diameters final for ksize
@@ -67,3 +65,4 @@ int* initJobArray(int NO_BLOCKS, int fact);
 
 void printArrTestPrint(int myid, float* arr, int size, const char* arrName);
 
+void initArrToZeroes(float** arr, int size);

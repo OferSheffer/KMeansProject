@@ -262,16 +262,14 @@ cudaError_t kCentersWithCuda(xyArrays* kCenters, int ksize, xyArrays* xya, int* 
 
 		// Kernel call ** reClusterWithCuda
 		SharedMemBytes = THREADS_PER_BLOCK * sizeof(bool);
-#ifdef _DEBUGSM
-		int SharedMemBytes = THREADS_PER_BLOCK * sizeof(bool);
-		printf("__global__ reClusterWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
-#endif
+
 		if (cudaGetLastError() != cudaSuccess) { printf("Failed before reCluster\n"); FF; }
 		reClusterWithCuda << <NO_BLOCKS, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kCenters, ksize, d_xya, d_pka, d_kaFlags, N); // THREADS_PER_BLOCK, THREAD_BLOCK_SIZE
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "reClusterWithCuda launch failed: %s\n", cudaGetErrorString(cudaStatus));
-			FF;
+			int SharedMemBytes = THREADS_PER_BLOCK * sizeof(bool);
+			printf("__global__ reClusterWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
+			fprintf(stderr, "reClusterWithCuda launch failed: %s\n", cudaGetErrorString(cudaStatus)); FF;
 			goto Error;
 		}
 
@@ -322,19 +320,17 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	// Kernel call ** kDiamBlockWithCuda
 	SharedMemBytes = THREADS_PER_BLOCK * 2 * sizeof(float);
 
-	//initialize diameters as zero
-	for (int i = 0; i < ksize; i++)
-	{
-		kDiameters[i] = 0;
-	}
-
+	initArrToZeroes(&kDiameters, ksize);
+	
 	cudaStatus = cudaSetDevice(0);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
 		goto Error;
 	}
-
-	//// allocate device memory
+	
+	///////////////////////////
+	// allocate device memory
+	{
 	size_t nDataBytes = N * 2 * sizeof(float);  // N x 2 x sizeof(float)
 	xyArrays da_xya;  // device anchor for copying xy-arrays data
 	cudaMalloc(&(da_xya.x), nDataBytes / 2); CHKMAL_ERROR;
@@ -345,13 +341,14 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	cudaMalloc(&d_xya, sizeof(xyArrays));
 	cudaMemcpy(d_xya, &da_xya, sizeof(xyArrays), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
-	//float* d_kDiameters;
-	cudaMalloc(&d_kDiameters, ksize * sizeof(float));
+	cudaMalloc(&d_kDiameters, ksize * sizeof(float));  //float* d_kDiameters;
 	cudaMemcpy(d_kDiameters, kDiameters, ksize * sizeof(float), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
 
 	cudaMalloc(&d_pka, N * sizeof(int)); CHKMAL_ERROR;
 	cudaMemcpy(d_pka, pka, N * sizeof(int), cudaMemcpyHostToDevice); CHKMEMCPY_ERROR;
+	}
 
+	////////////////////////////
 	//MPI single -- working out the single BLOCK problem with CUDA
 	if (myid == MASTER)
 	{
@@ -360,12 +357,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		printf("NO_BLOCKS: %d\n", NO_BLOCKS); FF;
 		printf("Proc %d, Attempting FirstJob, Blocks %2d, %2d\n", myid, 0, 0); fflush(stdout);
 #endif
-#ifdef _DEBUGSM
-		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
-		printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
-		printf("__global__ kDiamBlockWithCuda() call with %d RequestedRegistersPerBlock\n", RequestedRegistersPerBlock); FF;
-#endif
-#ifdef _PROF3
+#ifdef _PROF_DIAM_BLOCK_KERNEL
 		diamKerStart = omp_get_wtime();
 #endif
 		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
@@ -375,13 +367,13 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));
 			printf("__global__ kDiamBlockWithCuda() call error!!!\n\n"); FF;
 			printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
-			printf("__global__ kDiamBlockWithCuda() call with %d RequestedRegistersPerBlock\n", RequestedRegistersPerBlock); FF;
+			printf("__global__ kDiamBlockWithCuda() call with %d RequestedRegistersPerBlock (approx.)\n", RequestedRegistersPerBlock); FF;
 			printf("**********************************************\n\n", RequestedRegistersPerBlock); FF;
 			goto Error;
 		}
 
 		cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
-#ifdef _PROF3
+#ifdef __PROF_DIAM_BLOCK_KERNEL
 		diamKerFinish = omp_get_wtime();
 		if (myid == MASTER) { printf("kDiamBlock %d run-time: %f\n", ksize, diamKerFinish - diamKerStart); FF; }
 #endif
@@ -398,13 +390,14 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	float* kDiametersTempAnswer, *kDiametersAnswer;
 	int streamIdx = 0;
 	kDiametersTempAnswer = (float*)malloc(ksize * sizeof(float));
-	cudaStream_t *streams = (cudaStream_t *)malloc(NUM_STREAMS * sizeof(cudaStream_t));
-	for (int streamIdx = 0; streamIdx < NUM_STREAMS; streamIdx++)
+
+	//  allocate and initialize an array of NUM_STREAMS stream handles
+	cudaStream_t *streams = (cudaStream_t *)malloc(NUM_CONCUR_KERNELS * sizeof(cudaStream_t));
+	for (int streamIdx = 0; streamIdx < NUM_CONCUR_KERNELS; streamIdx++)
 	{
 		cudaStreamCreate(&(streams[streamIdx])); STREAMCR_ERROR;
 	}
-	bool twoJobsFlag = false;
-
+	int numJobsCounter = 0;
 
 	if (myid == MASTER)
 	{
@@ -413,13 +406,26 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		int* jobs = initJobArray(NO_BLOCKS, NO_JOBS);
 		int resultsCounter = 1;  // master already solved one job on its own.
 
-		// distribute work to SLAVES (x < numprocs protects if numprocs==1)
-		for (x = 1; x < numprocs && x < NO_JOBS; x += NUM_STREAMS)
+		// distribute work to SLAVES (p < numprocs protects if numprocs==1)
+		int p;	// process number
+		for (p=1, x = 1; p < numprocs && x < NO_JOBS; ++p)
 		{
-			for (int i = 0; i<NUM_STREAMS; i++) {
-				// send numprocs * GPU streams values to get the work started
-				if (x + i < NO_JOBS) MPI_Send(&jobs[2 * (x+i)], 2, MPI_INT, x, NEW_JOB, MPI_COMM_WORLD);
+			if (x + NUM_CONCUR_KERNELS - 1 < NO_JOBS) numJobsCounter = NUM_CONCUR_KERNELS;
+			else numJobsCounter = NO_JOBS - x;
+#ifdef _DEBUGV
+			printf("Sending %d numJobsCounter to process %d\n", numJobsCounter, p); FF;
+#endif
+			MPI_Send(&numJobsCounter, 1, MPI_INT, p, NEW_JOB, MPI_COMM_WORLD); x++;
+			for (int i = 0; i < numJobsCounter; i++)
+			{
+				MPI_Send(&jobs[2 * x], 2, MPI_INT, p, NEW_JOB, MPI_COMM_WORLD); x++;
 			}
+		}
+		// edge case: less processors than jobs, notify slaves they don't need to work
+		for (; p < numprocs; ++p)
+		{
+			numJobsCounter = 0;
+			MPI_Send(&numJobsCounter, 1, MPI_INT, p, STOP_WORKING, MPI_COMM_WORLD);
 		}
 		
 		// dynamically allocate further jobs as results are coming in
@@ -433,38 +439,66 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			{
 				//TODO complete algorithm for master-slave with multi-kernels
 				MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+				resultsCounter += status.MPI_TAG; // slaves report their numJobsCounter in the tag
+
+				ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
+
+#ifdef _DEBUG1
+				//TEST kDiameters 
+
+				//TODO rm commenting for runtime
+				//printf("\nMaster values after MaxVectors with source %d !!\n", status.MPI_SOURCE); FF;
+				printf("\nMaster values after MaxVectors with source %d !!\n", status.MPI_SOURCE); FF;
+				printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
+				printf("***********************************************\n\n"); FF;
+#endif
+
+				// if needed, send next job and increase x
+				if (numprocs > 1)
+				{
+					if (x < NO_JOBS)
+					{
+						MPI_Send(&jobs[2 * x], 2, MPI_INT, status.MPI_SOURCE, NEW_JOB, MPI_COMM_WORLD);
+						x++;
+					}
+					else
+					{
+						// notify process about work completion
+						MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, STOP_WORKING, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
+					}
+				}
+
 			}
 			else
-			{   // only the "MASTER" works
-				
+			////////////////////////////////////////
+			// only the "MASTER" works
+			{ 
 #ifdef _DEBUG1
 				printf("Proc %d, working on jobForBlocks %2d, %2d (stream %d)\n", myid, jobs[2 * x], jobs[2 * x + 1], streamIdx); fflush(stdout);
 #endif
-				twoJobsFlag = false;
+				numJobsCounter = 0;
 				kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * x], jobs[2 * x + 1]); x++;
-				streamIdx = (streamIdx + 1) % NUM_KERNELS;
+				streamIdx = (streamIdx + 1) % NUM_CONCUR_KERNELS;
+				numJobsCounter++;
 				if (x < NO_JOBS)
 				{
 					kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * x], jobs[2 * x + 1]); x++;
-					streamIdx = (streamIdx + 1) % NUM_KERNELS; 
-					twoJobsFlag = true;
+					cudaStatus = cudaGetLastError();
+					if (cudaStatus != cudaSuccess)
+					{
+						fprintf(stderr, "id: %d, kernel kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus)); FF;
+						goto Error;
+					}
+					streamIdx = (streamIdx + 1) % NUM_CONCUR_KERNELS; 
+					numJobsCounter++;
 				}
-				// TODO
-				//cudaStatus = cudaGetLastError();
-				//if (cudaStatus != cudaSuccess)
-				//{
-				//	fprintf(stderr, "id: %d, kernel kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus)); FF;
-				//	goto Error;
-				//}
+
 			}
 			cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 
 			cudaStatus = cudaMemcpy(kDiametersTempAnswer, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
-			if (twoJobsFlag)
-				resultsCounter += 2;
-			else
-				resultsCounter++;
+			resultsCounter += numJobsCounter;
 
 			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
 
@@ -499,95 +533,54 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	}
 	//////////////////////////////////////////////////////////
 	// SLAVES
-	/*
 	else {  //slaves
 		int masterTag = NEW_JOB;
-		
-		// allocate and initialize an array of stream handles
-		cudaStream_t *streams = (cudaStream_t *)malloc(NUM_STREAMS * sizeof(cudaStream_t));
-		for (int i = 0; i < NUM_STREAMS; i++)
-		{
-			cudaStreamCreate(&(streams[i])); STREAMCR_ERROR;
-		}
-		
-		
-		
-		
-		
-		
 		int jobForBlocks[2];
+		int jobIdx = 0;
 		
-		
-		// create CUDA event handles
-		cudaEvent_t start_event, stop_event;
-		cudaEventCreate(&start_event); EVENT_ERROR;
-		cudaEventCreate(&stop_event); EVENT_ERROR;
-
-		// the events are used for synchronization (no need to record timings)
-		// events will not introduce global sync points when recorded (critical to get overlap)
-		cudaEvent_t *kernelEvent;
-		kernelEvent = (cudaEvent_t *)malloc(NUM_KERNELS * sizeof(cudaEvent_t));
-		for (int i = 0; i < NUM_KERNELS; i++)
-		{
-			cudaEventCreateWithFlags(&(kernelEvent[i]), cudaEventDisableTiming); EVENT_ERROR;
-		}
-		//////////////////////////////////////////////////////
-
 		/// get to work
 		while (masterTag == NEW_JOB)
 		{
-
-			MPI_Recv(jobForBlocks, 2, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			MPI_Recv(&numJobsCounter, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			masterTag = status.MPI_TAG;
-
 			if (masterTag == NEW_JOB)
 			{
+				for (streamIdx = 0, jobIdx = 0; jobIdx < numJobsCounter; ++jobIdx)
 				{
+					MPI_Recv(jobForBlocks, 2, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+				
 #ifdef _DEBUGV
-					printf("Proc %d, working on jobForBlocks %2d, %2d, kernelIdx %d\n", myid, jobForBlocks[0], jobForBlocks[1], kernelIdx); fflush(stdout);
+					printf("Proc %d, working on jobForBlocks %2d, %2d, streamIdx %d\n", myid, jobForBlocks[0], jobForBlocks[1], streamIdx); fflush(stdout);
 #endif
-#ifdef _DEBUGSM
-					printf("__global__ kDiamBlockWithCuda() call with %d SharedMemBytes\n", SharedMemBytes); FF;
-#endif
-				}
-				// queue nkernels in separate streams and record when they are done
-				kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[kernelIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobForBlocks[0], jobForBlocks[1]);
-				cudaStatus = cudaGetLastError();
-				if (cudaStatus != cudaSuccess) {
-					fprintf(stderr, "id: %d, kDiamBlockWithCuda<<%d, %d, %d, %d>> launch failed for data: %ld, %d, %d\n",
-						myid, 1, THREADS_PER_BLOCK, SharedMemBytes, kernelIdx, N, jobForBlocks[0], jobForBlocks[1]); FF;
-					fprintf(stderr, "id: %d, main kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus)); FF;
-					goto Error;
-				}
-				cudaEventRecord(kernelEvent[kernelIdx], streams[kernelIdx]); EVENT_ERROR;
-				cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-				
+					// queue nkernels in separate streams and record when they are done
+					kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobForBlocks[0], jobForBlocks[1]);
+					cudaStatus = cudaGetLastError();
+					if (cudaStatus != cudaSuccess) {
+						fprintf(stderr, "id: %d, kDiamBlockWithCuda<<%d, %d, %d, %d>> launch failed for data: %ld, %d, %d\n",
+							myid, 1, THREADS_PER_BLOCK, SharedMemBytes, streamIdx, N, jobForBlocks[0], jobForBlocks[1]); FF;
+						fprintf(stderr, "id: %d, main kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus)); FF;
+						goto Error;
+					}
 
-				// make the last stream wait for the kernel event to be recorded
-				cudaStreamWaitEvent(streams[NUM_STREAMS - 1], kernelEvent[kernelIdx], 0); EVENT_ERROR;
-
-				
+					streamIdx = streamIdx + 1 % NUM_CONCUR_KERNELS;
+				}
 				cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
-
-				
-
+				cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 #ifdef _DEBUG1
 				//TEST kDiameters 
 				printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 #endif
-
-				MPI_Send(kDiameters, ksize, MPI_FLOAT, 0, myid, MPI_COMM_WORLD);	   // report your rank to master in tag (not necessary)
-				
-
-				kernelIdx = kernelIdx + 1 % NUM_KERNELS;
+				MPI_Send(kDiameters, ksize, MPI_FLOAT, 0, numJobsCounter, MPI_COMM_WORLD);	   // report your numJobsCounter to master in tag
 			}
 			else
+			/////////////////////////////
+			// No more work. Exit.
 			{
 				goto Error;
 			}
 		}
 	}
-	*/
+
 
 Error:
 	cudaFree(d_xya);

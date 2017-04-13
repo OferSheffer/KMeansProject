@@ -1,3 +1,5 @@
+1. manage number of streams more dynamically
+
 2. Reduce CUDA "diameter in blocks" load times by loading exact block data into GPU.
 2.2. am I unloading all the info many times?
 -- perhaps its ok to load all the data at the beginning
@@ -88,3 +90,4 @@ the kernel. Usually it will result in more spilling to local memory
 
 	17. I'm still getting occupancy 50% with SM2 appearing to have no work (My Maxwell).
 
+18. use helper_cuda.h: macros getLastCudaError & checkCudaErrors (See the samples)

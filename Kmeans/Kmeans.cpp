@@ -513,6 +513,15 @@ void printArrTestPrint(int myid, float* arr, int size, const char* arrName)
 	}
 }
 
+void initArrToZeroes(float** arr, int size)
+{
+	for (int i = 0; i < size; i++)
+	{
+		(*arr)[i] = 0;
+	}
+}
+
+
 
 void initializeWithGpuReduction()
 {
