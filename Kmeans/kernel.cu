@@ -403,6 +403,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	{
 		int x, const NO_JOBS = (ceil(NO_BLOCKS / 2.0f) + 1) * ceil(NO_BLOCKS / 2.0f) / 2;   // core: NO_JOBS = 1 + 2 + 3 + ... + NO_BLOCKS = (blocks+1)*blocks/2
 																							// blocks adjusted (/2.0f) for a x2 kernel.
+		int slaveSource;
 		int* jobs = initJobArray(NO_BLOCKS, NO_JOBS);
 		int resultsCounter = 1;  // master already solved one job on its own.
 
@@ -413,11 +414,14 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			if (x + NUM_CONCUR_KERNELS - 1 < NO_JOBS) numJobsCounter = NUM_CONCUR_KERNELS;
 			else numJobsCounter = NO_JOBS - x;
 #ifdef _DEBUGV
-			printf("Sending %d numJobsCounter to process %d\n", numJobsCounter, p); FF;
+			printf("Sending %d Jobs to process %d. x equals %d\n", numJobsCounter, p, x); FF;
 #endif
-			MPI_Send(&numJobsCounter, 1, MPI_INT, p, NEW_JOB, MPI_COMM_WORLD); x++;
+			MPI_Send(&numJobsCounter, 1, MPI_INT, p, NEW_JOB, MPI_COMM_WORLD);
 			for (int i = 0; i < numJobsCounter; i++)
 			{
+#ifdef _DEBUG1
+				printf("Proc %d, sending jobs %2d, %2d to process %d\n", myid, jobs[2 * x], jobs[2 * x + 1], p); FF;
+#endif
 				MPI_Send(&jobs[2 * x], 2, MPI_INT, p, NEW_JOB, MPI_COMM_WORLD); x++;
 			}
 		}
@@ -440,33 +444,16 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				//TODO complete algorithm for master-slave with multi-kernels
 				MPI_Recv(kDiametersTempAnswer, ksize, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 				resultsCounter += status.MPI_TAG; // slaves report their numJobsCounter in the tag
+				slaveSource = status.MPI_SOURCE;
 
 				ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
 
 #ifdef _DEBUG1
 				//TEST kDiameters 
-
-				//TODO rm commenting for runtime
-				//printf("\nMaster values after MaxVectors with source %d !!\n", status.MPI_SOURCE); FF;
-				printf("\nMaster values after MaxVectors with source %d !!\n", status.MPI_SOURCE); FF;
+				printf("\nMaster values after MaxVectors with source %d !!\n", slaveSource); FF;
 				printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 				printf("***********************************************\n\n"); FF;
 #endif
-
-				// if needed, send next job and increase x
-				if (numprocs > 1)
-				{
-					if (x < NO_JOBS)
-					{
-						MPI_Send(&jobs[2 * x], 2, MPI_INT, status.MPI_SOURCE, NEW_JOB, MPI_COMM_WORLD);
-						x++;
-					}
-					else
-					{
-						// notify process about work completion
-						MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, STOP_WORKING, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
-					}
-				}
 
 			}
 			else
@@ -497,18 +484,10 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 			//////////////////////////////////////////////////
 			// Sync device, copy results and adjust kDiameters
-			{
-				cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
-				cudaStatus = cudaMemcpy(kDiametersTempAnswer, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-				ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
-			}
+			cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
+			cudaStatus = cudaMemcpy(kDiametersTempAnswer, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
+			ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
 
-#ifdef _DEBUG1
-			//TEST kDiameters 
-			printf("\nMaster values after MaxVectors with source %d !!\n", MASTER); FF;
-			printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
-			printf("***********************************************\n\n"); FF;
-#endif
 
 			///////////////////////////////////////////
 			// if needed, send next job and increase x
@@ -516,13 +495,25 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			{
 				if (x < NO_JOBS)
 				{
-					MPI_Send(&jobs[2 * x], 2, MPI_INT, status.MPI_SOURCE, NEW_JOB, MPI_COMM_WORLD);
-					x++;
+					if (x + NUM_CONCUR_KERNELS - 1 < NO_JOBS) numJobsCounter = NUM_CONCUR_KERNELS;
+					else numJobsCounter = NO_JOBS - x;
+#ifdef _DEBUGV
+					printf("Sending %d Jobs to process %d. x equals %d\n", numJobsCounter, slaveSource, x); FF;
+#endif
+					MPI_Send(&numJobsCounter, 1, MPI_INT, slaveSource, NEW_JOB, MPI_COMM_WORLD);
+					for (int i = 0; i < numJobsCounter; i++)
+					{
+#ifdef _DEBUG1
+						printf("Proc %d, sending jobs %2d, %2d to process %d\n", myid, jobs[2 * x], jobs[2 * x + 1], slaveSource); FF;
+#endif
+						MPI_Send(&jobs[2 * x], 2, MPI_INT, slaveSource, NEW_JOB, MPI_COMM_WORLD); x++;
+					}
 				}
 				else
 				{
 					// notify process about work completion
-					MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, STOP_WORKING, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
+					numJobsCounter = 0;
+					MPI_Send(&numJobsCounter, 1, MPI_INT, slaveSource, STOP_WORKING, MPI_COMM_WORLD);  // message with tag==1 from master: work complete
 				}
 			}
 		}
@@ -538,7 +529,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 		/// get to work
 		while (masterTag == NEW_JOB)
 		{
-			MPI_Recv(&numJobsCounter, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			MPI_Recv(&numJobsCounter, 1, MPI_INT, MASTER, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			masterTag = status.MPI_TAG;
 			if (masterTag == NEW_JOB)
 			{

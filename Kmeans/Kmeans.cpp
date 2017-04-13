@@ -464,7 +464,7 @@ return jobs;
 } */
 
 int* initJobArray(int NO_BLOCKS, int fact)
-{
+{   /* jobs array set for blocks of size 2 (skip cout by 2) */
 	int* jobs = (int*)malloc(2 * fact * sizeof(int));
 	int jidx = 0;
 	for (int i = 0; i < NO_BLOCKS; i += 2)
