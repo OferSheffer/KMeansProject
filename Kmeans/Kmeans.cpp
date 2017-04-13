@@ -7,6 +7,9 @@ Author: Ofer Sheffer, 1 April 2017
 
 //NOTE: use \\ in systems were / does not work
 #define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
+//#define FILE_NAME "C:\\Users\\Ofer\\Source\\Repos\\KMeansProject\\Kmeans\\cluster2Hexagon.txt"
+
+
 //#define FILE_NAME "D:\\cluster1.txt"
 #define NO_OMP_THREADS 4	// OMP: 4 core laptop
 #define MASTER 0
@@ -557,8 +560,15 @@ void initializeWithGpuReduction()
 			// THREADS_PER_BLOCK = BASE_THREADS_PER_BLOCK / 4;
 			// maxRequestedSharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
 			// RequestedRegistersPerBlock = THREADS_PER_BLOCK * 37; // 32, 29
+			if ((props.concurrentKernels == 0))
+			{
+				//TODO override number of streams (NUM_STREAMS) to 1
+				printf("> GPU does not support concurrent kernel execution\n"); FF;
+				printf("  CUDA kernel runs will be serialized\n\n"); FF;
+			}
 
-			printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name); FF;
+			printf("> Compute %d.%d CUDA device: [%s] (with %d multi-processors)\n", props.major, props.minor, props.name, props.multiProcessorCount); FF;
+
 			//printf("> concurrentKernels? %d\n", props.concurrentKernels); FF;
 			printf("  Kernel/Gpu run with 2^%d reduction factor\n"
 				"  THREADS_PER_BLOCK:                         %7d /%7d\n"
