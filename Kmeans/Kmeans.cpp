@@ -6,8 +6,8 @@ Author: Ofer Sheffer, 1 April 2017
 #include "Kmeans.h"
 
 //NOTE: use \\ in systems were / does not work
-#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
-//#define FILE_NAME "C:\\Users\\Ofer\\Source\\Repos\\KMeansProject\\Kmeans\\cluster2Hexagon.txt"
+//#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
+#define FILE_NAME "C:\\Users\\Ofer\\Source\\Repos\\KMeansProject\\Kmeans\\cluster2Hexagon.txt"
 
 
 //#define FILE_NAME "D:\\cluster1.txt"
@@ -59,7 +59,31 @@ int main(int argc, char *argv[])
 #endif
 
 		readPointsFromFile();			 // init xya with data
+
+#ifdef _PROFILE_BLOCKS_TO_JOBS
+		const int NO_BLOCKS = ceil(N / (float)THREADS_PER_BLOCK);
+		const int NO_JOBS  = (ceil(NO_BLOCKS / 2.0f) + 1) * ceil(NO_BLOCKS / 2.0f) / 2;
+		printf("\t\tN=%ld, Max=%d, LIMIT=%d, QM=%f\n"
+			   "\t   > Critical Workload: %d >> %d  (BLOCKS/JOBS)\n\n\n",
+													N, MAX, LIMIT, QM,
+													NO_BLOCKS, NO_JOBS); FF;
+#else
 		printf("\t\tN=%ld, Max=%d, LIMIT=%d, QM=%f\n\n\n", N, MAX, LIMIT, QM); FF;
+#endif
+
+
+
+#ifdef _DEBUGPOINTSREADFROMFILE
+		for (int i = 0; i < 3; i++)
+		{
+			printf("\txya point %d: (%f,%f)\n", i, xya->x[i], xya->y[i]); FF;
+		}
+		for (int i = 100000; i < 100003; i++)
+		{
+			printf("\txya point %d: (%f,%f)\n", i, xya->x[i], xya->y[i]); FF;
+		}
+		
+#endif
 
 		if (numprocs > 1)
 		{
@@ -274,7 +298,7 @@ void readPointsFromFile()
 		MPI_Finalize();
 		exit(1);
 	}
-	fscanf(fp, "%ld %d %d %f", &N, &MAX, &LIMIT, &QM);	// obtain core info from first line	
+	fscanf(fp, "%ld %d %d %f", &N, &MAX, &LIMIT, &QM);		// obtain core info from first line	
 	populateSoA(fp);										// populate data into xya
 	fclose(fp);
 }
@@ -293,11 +317,16 @@ void initClusterAssociationArrays()
 
 void populateSoA(FILE* fp)
 {
+#ifdef _DEBUGNVAL
+	printf("In populateSoA. N=%d", N); FF;
+#endif
+
 	mallocSoA(&xya, N);
 
 	for (long i = 0; i < N; i++)
 	{
-		fscanf(fp, "%d %f %f", &i, &(xya->x[i]), &(xya->y[i]));
+		int tmp;
+		fscanf(fp, "%d %f %f", &tmp, &(xya->x[i]), &(xya->y[i]));
 	}
 
 }
@@ -548,9 +577,13 @@ void initializeWithGpuReduction()
 		/***********************************/
 
 		//// ** reClusterWithCuda  -----		THREADS_PER_BLOCK * (1 * sizeof(float) + 3 * sizeof(unsigned int) + 2 * sizeof(int));
-		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));  // MAX (40)		                                                            
-		//// Profiled MAX = THREADS_PER_BLOCK * 37
-		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * 37;
+		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));	                                                            
+		//// Profiled MAX per thread = 37
+		const int profiledRegistersPerThread = 37;
+		const int regMultiple = 4; // power of 2!
+		// round regs per thread up to a multiple of regMultiple and calc total regs per block
+		// assumes multiple is a power of 2!
+		size_t RequestedRegistersPerBlock = THREADS_PER_BLOCK * ((profiledRegistersPerThread + regMultiple - 1) & ~(regMultiple - 1));
 
 
 		if (props.sharedMemPerBlock < maxRequestedSharedMemBytes ||
@@ -568,7 +601,7 @@ void initializeWithGpuReduction()
 			// Testing with less threads:
 			// THREADS_PER_BLOCK = BASE_THREADS_PER_BLOCK / 4;
 			// maxRequestedSharedMemBytes = 2 * THREADS_PER_BLOCK * sizeof(float);
-			// RequestedRegistersPerBlock = THREADS_PER_BLOCK * 37; // 32, 29
+			// RequestedRegistersPerBlock = THREADS_PER_BLOCK * ((profiledRegistersPerThread + regMultiple - 1) & ~(regMultiple - 1));
 			if ((props.concurrentKernels == 0))
 			{
 				//TODO override number of streams (NUM_STREAMS) to 1

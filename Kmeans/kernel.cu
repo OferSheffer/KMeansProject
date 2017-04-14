@@ -379,7 +379,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #endif
 		cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
 
-#ifdef _DEBUG1
+#ifdef _DEBUGDIAMS
 		//TEST kDiameters 
 		printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 #endif
@@ -403,6 +403,8 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 	{
 		int x, const NO_JOBS = (ceil(NO_BLOCKS / 2.0f) + 1) * ceil(NO_BLOCKS / 2.0f) / 2;   // core: NO_JOBS = 1 + 2 + 3 + ... + NO_BLOCKS = (blocks+1)*blocks/2
 																							// blocks adjusted (/2.0f) for a x2 kernel.
+
+
 		int slaveSource;
 		int* jobs = initJobArray(NO_BLOCKS, NO_JOBS);
 		int resultsCounter = 1;  // master already solved one job on its own.
@@ -419,7 +421,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			MPI_Send(&numJobsCounter, 1, MPI_INT, p, NEW_JOB, MPI_COMM_WORLD);
 			for (int i = 0; i < numJobsCounter; i++)
 			{
-#ifdef _DEBUG1
+#ifdef _DEBUGJOBS
 				printf("Proc %d, sending jobs %2d, %2d to process %d\n", myid, jobs[2 * x], jobs[2 * x + 1], p); FF;
 #endif
 				MPI_Send(&jobs[2 * x], 2, MPI_INT, p, NEW_JOB, MPI_COMM_WORLD); x++;
@@ -448,7 +450,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 				ompMaxVectors(&kDiameters, kDiametersTempAnswer, ksize);
 
-#ifdef _DEBUG1
+#ifdef _DEBUGDIAMS
 				//TEST kDiameters 
 				printf("\nMaster values after MaxVectors with source %d !!\n", slaveSource); FF;
 				printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
@@ -466,7 +468,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 
 				for (int i = 0; i < numJobsCounter; i++)
 				{
-#ifdef _DEBUG1
+#ifdef _DEBUGJOBS
 					printf("Proc %d, working on jobForBlocks %2d, %2d (stream %d)\n", myid, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1], streamIdx); fflush(stdout);
 #endif
 					kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1]);
@@ -503,7 +505,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 					MPI_Send(&numJobsCounter, 1, MPI_INT, slaveSource, NEW_JOB, MPI_COMM_WORLD);
 					for (int i = 0; i < numJobsCounter; i++)
 					{
-#ifdef _DEBUG1
+#ifdef _DEBUGJOBS
 						printf("Proc %d, sending jobs %2d, %2d to process %d\n", myid, jobs[2 * x], jobs[2 * x + 1], slaveSource); FF;
 #endif
 						MPI_Send(&jobs[2 * x], 2, MPI_INT, slaveSource, NEW_JOB, MPI_COMM_WORLD); x++;
@@ -537,7 +539,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				{
 					MPI_Recv(jobForBlocks, 2, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 				
-#ifdef _DEBUGV
+#ifdef _DEBUGJOBS
 					printf("Proc %d, working on jobForBlocks %2d, %2d, streamIdx %d\n", myid, jobForBlocks[0], jobForBlocks[1], streamIdx); fflush(stdout);
 #endif
 					// queue nkernels in separate streams and record when they are done
@@ -554,7 +556,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				}
 				cudaStatus = cudaDeviceSynchronize(); CHKSYNC_ERROR;
 				cudaStatus = cudaMemcpy(kDiameters, d_kDiameters, ksize * sizeof(float), cudaMemcpyDeviceToHost); CHKMEMCPY_ERROR;
-#ifdef _DEBUG1
+#ifdef _DEBUGDIAMS
 				//TEST kDiameters 
 				printArrTestPrint(myid, kDiameters, ksize, "kDiameters");
 #endif

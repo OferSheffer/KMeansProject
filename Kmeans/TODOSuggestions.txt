@@ -1,20 +1,14 @@
-1. manage number of streams more dynamically
+2. Consider reducing CUDA "diameter in blocks" load times by loading exact block data into GPU.
 
-2. Reduce CUDA "diameter in blocks" load times by loading exact block data into GPU.
-2.2. am I unloading all the info many times?
--- perhaps its ok to load all the data at the beginning
--- but then write out only the relevant data to its proper location
--- am I writing out data to a location or just the KDiameter-values?
+3. CUDA resource review (for max occupancy): 
+ What do I do about this Registers per thread reccommendation?
 
-6. CUDA resource review (for max occupancy):
 ****   CUDA Occupancy calculator   ****
 		1.) Select Compute Capability (click):	5.0
 		1.b) Select Shared Memory Size Config (bytes)	65536
-		1.c) Select Global Load Caching Mode	L1+L2 (ca)
-	
-		2.) Enter your resource usage:	
+		
 		Threads Per Block	1024
-		Registers Per Thread	32!!
+		Registers Per Thread	32                            !!!!!
 		Shared Memory Per Block (bytes)	2048
 	
 		3.) GPU Occupancy Data is displayed here and in the graphs:	
@@ -26,11 +20,10 @@
 --------------------
 		1.) Select Compute Capability (click):	2.0
 		1.b) Select Shared Memory Size Config (bytes)	65536
-		1.c) Select Global Load Caching Mode	L1+L2 (ca)
 	
 		2.) Enter your resource usage:	
 		Threads Per Block	512
-		Registers Per Thread	16/20!!
+		Registers Per Thread	16/20                            !!!!!
 		Shared Memory Per Block (bytes)	1024
 	
 		3.) GPU Occupancy Data is displayed here and in the graphs:	
@@ -39,37 +32,32 @@
 		Active Thread Blocks per Multiprocessor	3
 		Occupancy of each Multiprocessor	100%
 
-7. Asynchronous launches - reivew material for further improvement.
-
-8. Compute Visual Profiler (CUDA Toolkit) -- 
-	find out how many registers your kernel is using
-	get "registers per work item" values
-
-9. Even More info
--cl-nv-verbose (OpenCL)
-output can be fetched with clGetProgramBuildInfo (CL_PROGRAM_BUILD_LOG).
-ptxas info    : Used 16 registers, 36+8 bytes smem, 180 bytes cmem[1]
-
-11. Exact register usages (avidday):
- Pass the -Xptxas="-v" option to nvcc, and the compiler will emit the exact
-register usages of the compiled kernel. It is impossible to estimate register
-usage from uncompiled C code - the compiler and assembler uses very complex and
-aggressive optimization strategies that include code reordering, register re-use,
-spilling to local memory, dead code removal, result computation during compilation,
-function in-lining and a whole bunch of other stuff.  --maxrregcount option which
-will provide a hard limit on how many registers the assembler will try and use for
-the kernel. Usually it will result in more spilling to local memory
+4. compiler uses aggressive optimization strategies that include code reordering,
+register re-use, spilling to local memory !!!
+dead code removal, result computation during compilation,
+function in-lining and a whole bunch of other stuff.
+--maxrregcount for a hard limit. Usually it will result in more spilling to local memory
 
 
-12. fix the single process test so it only runs once/twice and not so many times
 
-13. is there value in loading less data from host to device?
 
-14. Big impact! less blocks: rework to allow blocks to do more work. (1 kernel now does 2 by 2)
+17. I'm still getting occupancy 50% with SM2 appearing to have no work (My Maxwell).
 
-15. Missing: handling of super large data: currently, master puts it all in the kCenters kernel
 
-16. //TODO: use MASTER GPU to asynchronously run first job and poll for completion to give new jobs
+
+Why is my limit at about 205000 points?   (Missing: handling of super large data: currently, master puts it all in the kCenters kernel)
+Why am I only using 1 SM out of 2?
+Why are 2 streams almost the same run-time as 8?
+Big impact! less blocks: rework to allow blocks to do more work. (1 kernel now does 2 by 2)
+
+
+
+Later: use helper_cuda.h: macros getLastCudaError & checkCudaErrors (See the samples)
+
+Later: less if(numprocs) for master only
+
+Later:
+//TODO: use MASTER GPU to asynchronously run first job and poll for completion to give new jobs
 	/*
 	//async initializations for MASTER
 	cudaEvent_t myJobIsDone;
@@ -87,7 +75,3 @@ the kernel. Usually it will result in more spilling to local memory
 	//non-blocking recv from slaves;
 	// }
 	*/
-
-	17. I'm still getting occupancy 50% with SM2 appearing to have no work (My Maxwell).
-
-18. use helper_cuda.h: macros getLastCudaError & checkCudaErrors (See the samples)
