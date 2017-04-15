@@ -102,22 +102,21 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 	// diameter^2 = (XA-XB)^2 + (YA-YB)^2 = XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
 	unsigned int tidA = blkAIdx * blockDim.x + threadIdx.x;
 
-
 	if (tidA < size)
 	{
-		XAP0 = powf(d_xya->x[tidA], 2);					// x^2 of blkA
-		YAP0 = powf(d_xya->y[tidA], 2);					// y^2 of blkA
+		XAP0 = powf(d_xya->x[tidA], 2);					// x^2 of blkA0
+		YAP0 = powf(d_xya->y[tidA], 2);					// y^2 of blkA0
 		if (tidA + blockDim.x < size)
 		{
-			XAP1 = powf(d_xya->x[tidA + blockDim.x], 2);	// x^2 of blkA+1
-			YAP1 = powf(d_xya->y[tidA + blockDim.x], 2);	// y^2 of blkA+1
+			XAP1 = powf(d_xya->x[tidA + blockDim.x], 2);	// x^2 of blkA1
+			YAP1 = powf(d_xya->y[tidA + blockDim.x], 2);	// y^2 of blkA1
 		}
 
 		unsigned int tidB = blkBIdx * blockDim.x + threadIdx.x;
 		if (tidB < size)
 		{
-			dShared_SquaredXYAB[2 * threadIdx.x + 0] = powf(d_xya->x[tidB], 2);	// i%2==0: x^2 of blkB
-			dShared_SquaredXYAB[2 * threadIdx.x + 1] = powf(d_xya->y[tidB], 2);	// i%2==1: y^2 of blkB
+			dShared_SquaredXYAB[2 * threadIdx.x + 0] = powf(d_xya->x[tidB], 2);	// i%2==0: x^2 of blkB0
+			dShared_SquaredXYAB[2 * threadIdx.x + 1] = powf(d_xya->y[tidB], 2);	// i%2==1: y^2 of blkB0
 		}
 		__syncthreads();
 
@@ -132,57 +131,64 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 		// run kernel with a single block, use external block indices to syncronize operations
 		int lastIter = blockDim.x / 2;
 		int tidO;
-		for (int iter = 1; iter < lastIter; iter++)
-		{
-			// BlkA0 & BlkA1 compared with BlkB0
-			tidO = blkBIdx * blockDim.x + (threadIdx.x + iter) % blockDim.x;
-			if (tidO < size)
-				if (myK0 == pka[tidO])
-				{
-					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
-					cur = XAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 0]
-						+ YAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 1]
-						- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
-					if (cur > max0) max0 = cur;
-				}
-				else if (myK1 == pka[tidO])
-				{
-					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
-					cur = XAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 0]
-						+ YAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 1]
-						- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
-					if (cur > max1) max1 = cur;
-				}
-		}
-		__syncthreads();
 
-		if (tidB + blockDim.x < size)
+		if (blockIdx.x == 0)
 		{
-			dShared_SquaredXYAB[2 * threadIdx.x + 0] = powf(d_xya->x[tidB + blockDim.x], 2);	// i%2==0: x^2 of blkB
-			dShared_SquaredXYAB[2 * threadIdx.x + 1] = powf(d_xya->y[tidB + blockDim.x], 2);	// i%2==1: y^2 of blkB
+			for (int iter = 1; iter < lastIter; iter++)
+			{
+				// BlkA0 & BlkA1 compared with BlkB0
+				tidO = blkBIdx * blockDim.x + (threadIdx.x + iter) % blockDim.x;
+				if (tidO < size)
+					if (myK0 == pka[tidO])
+					{
+						// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
+						cur = XAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 0]
+							+ YAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 1]
+							- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
+						if (cur > max0) max0 = cur;
+					}
+					else if (myK1 == pka[tidO] && blkAIdx < blkBIdx)
+					{
+						// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
+						cur = XAP1 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 0]
+							+ YAP1 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 1]
+							- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
+						if (cur > max1) max1 = cur;
+					}
+			}
+			__syncthreads();
 		}
-		__syncthreads();
-		for (int iter = 1; iter < lastIter; iter++)
+
+		if (blockIdx.x == 1)
 		{
-			// BlkA0 & BlkA1 compared with BlkB1
-			tidO = (blkBIdx + 1) * blockDim.x + (threadIdx.x + iter) % blockDim.x;
-			if (tidO < size)
-				if (myK0 == pka[tidO] && blkAIdx < blkBIdx)
-				{
-					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
-					cur = XAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 0]
-						+ YAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 1]
-						- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
-					if (cur > max0) max0 = cur;
-				}
-				else if (myK1 == pka[tidO])
-				{
-					// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
-					cur = XAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 0]
-						+ YAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 1]
-						- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
-					if (cur > max1) max1 = cur;
-				}
+			if (tidB + blockDim.x < size)
+			{
+				dShared_SquaredXYAB[2 * threadIdx.x + 0] = powf(d_xya->x[tidB + blockDim.x], 2);	// i%2==0: x^2 of blkB1
+				dShared_SquaredXYAB[2 * threadIdx.x + 1] = powf(d_xya->y[tidB + blockDim.x], 2);	// i%2==1: y^2 of blkB1
+			}
+			__syncthreads();
+			for (int iter = 1; iter < lastIter; iter++)
+			{
+				// BlkA0 & BlkA1 compared with BlkB1
+				tidO = (blkBIdx + 1) * blockDim.x + (threadIdx.x + iter) % blockDim.x;
+				if (tidO < size)
+					if (myK0 == pka[tidO])
+					{
+						// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
+						cur = XAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 0]
+							+ YAP0 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 1]
+							- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
+						if (cur > max0) max0 = cur;
+					}
+					else if (myK1 == pka[tidO])
+					{
+						// XA^2+XB^2+YA^2+YB^2  -2*XA*XB -2*YA*YB
+						cur = XAP1 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 0]
+							+ YAP1 + dShared_SquaredXYAB[2 * ((threadIdx.x + iter) % blockDim.x) + 1]
+							- 2 * d_xya->x[tidA] * d_xya->x[tidO] - 2 * d_xya->y[tidA] * d_xya->y[tidO];
+						if (cur > max1) max1 = cur;
+					}
+			}
 		}
 		AtomicMax(&(kDiameters[myK0]), sqrtf(max0));
 		AtomicMax(&(kDiameters[myK1]), sqrtf(max1));
@@ -360,7 +366,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #ifdef _PROF_DIAM_BLOCK_KERNEL
 		diamKerStart = omp_get_wtime();
 #endif
-		kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
+		kDiamBlockWithCuda << <2, THREADS_PER_BLOCK, SharedMemBytes >> > (d_kDiameters, ksize, d_xya, d_pka, N, 0, 0);
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
 			fprintf(stderr, "id: %d, kernel kDiamBlockWithCuda launch failed: %s\n", myid, cudaGetErrorString(cudaStatus)); FF;
@@ -471,7 +477,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 #ifdef _DEBUGJOBS
 					printf("Proc %d, working on jobForBlocks %2d, %2d (stream %d)\n", myid, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1], streamIdx); fflush(stdout);
 #endif
-					kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1]);
+					kDiamBlockWithCuda << <2, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1]);
 					resultsCounter++;
 					cudaStatus = cudaGetLastError();
 					if (cudaStatus != cudaSuccess)

@@ -17,7 +17,7 @@
 // GPU DEFINITIONS
 //***********************************
 #define BASE_THREADS_PER_BLOCK 1024
-#define NUM_CONCUR_KERNELS 2	// concurrent kernels
+#define NUM_CONCUR_KERNELS 8	// concurrent kernels
 
 void initializeWithGpuReduction();
 

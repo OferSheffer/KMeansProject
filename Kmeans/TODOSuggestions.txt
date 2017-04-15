@@ -1,3 +1,5 @@
+1. use more than 1 block in my grid (try 2)
+
 2. Consider reducing CUDA "diameter in blocks" load times by loading exact block data into GPU.
 
 3. CUDA resource review (for max occupancy): 
