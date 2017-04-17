@@ -6,8 +6,8 @@ Author: Ofer Sheffer, 1 April 2017
 #include "Kmeans.h"
 
 //NOTE: use \\ in systems were / does not work
-//#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
-#define FILE_NAME "C:\\Users\\Ofer\\Source\\Repos\\KMeansProject\\Kmeans\\cluster2Hexagon.txt"
+#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
+//#define FILE_NAME "C:\\Users\\Ofer\\Source\\Repos\\KMeansProject\\Kmeans\\cluster2Hexagon.txt"
 
 
 //#define FILE_NAME "D:\\cluster1.txt"
@@ -506,10 +506,6 @@ int* initJobArray(int NO_BLOCKS, int JOBS)
 			}
 
 		}
-#ifdef _DEBUGJOBARR
-	printf("Debug Job Array:\n"
-		"jidx = %d", jidx); FF;
-#endif
 	return jobs;
 }
 

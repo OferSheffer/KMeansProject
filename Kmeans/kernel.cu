@@ -474,10 +474,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 				for (int i = 0; i < numJobsCounter; i++)
 				{
 #ifdef _DEBUGJOBS
-					if (jobs[2 * resultsCounter + 1] < 0)
-					{
-						printf("Proc %d, working on jobForBlocks %2d, %2d (stream %d)\n", myid, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1], streamIdx); fflush(stdout);
-					}
+					printf("Proc %d, working on jobForBlocks %2d, %2d (stream %d)\n", myid, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1], streamIdx); fflush(stdout);
 #endif
 					kDiamBlockWithCuda << <2, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1]);
 					resultsCounter++;

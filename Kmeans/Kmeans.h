@@ -25,7 +25,7 @@ void initializeWithGpuReduction();
 //**********************************
 //#define _RUNAFEKA
 //#define _DEBUGV						// verbose
-#define _PROFILE_BLOCKS_TO_JOBS		// print #blocks and #jobs
+//#define _PROFILE_BLOCKS_TO_JOBS		// print #blocks and #jobs
 #define _TIME						// time output
 #define _TIMEK						// time per ksize
 //#define _PROF_DIAM_BLOCK_KERNEL		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
@@ -34,8 +34,7 @@ void initializeWithGpuReduction();
 
 //#define _DEBUGPOINTSREADFROMFILE		// xya values read from 
 //#define _DEBUGNVAL					// verify N in malloc
-//#define _DEBUGJOBARR				// review job array values
-#define _DEBUGJOBS					// which process is working on which job block
+//#define _DEBUGJOBS					// which process is working on which job block
 //#define _DEBUG1						// temp kDiameters values
 //#define _DEBUG2						// low level progress
 //#define _DEBUG4						// diameters final for ksize
