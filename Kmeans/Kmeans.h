@@ -18,7 +18,7 @@
 //***********************************
 #define BASE_THREADS_PER_BLOCK 1024
 #define WARP_SIZE 32
-#define NUM_CONCUR_KERNELS 2	// concurrent kernels
+#define NUM_CONCUR_KERNELS 16	// concurrent kernels
 
 void initializeWithGpuReduction();
 

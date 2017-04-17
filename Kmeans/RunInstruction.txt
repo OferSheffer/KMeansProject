@@ -1,3 +1,5 @@
+0.1. Properties: CUDA C/C++ > Max Used Registers = 32
+0.2. Properties: CUDA C/C++ > Generate GPU Debug Information = No
 1. place point file on D:\
 2. should run on most setups. (example run below)
 3. consider recompilation if messaged regarding GPU performance.

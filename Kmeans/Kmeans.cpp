@@ -6,8 +6,8 @@ Author: Ofer Sheffer, 1 April 2017
 #include "Kmeans.h"
 
 //NOTE: use \\ in systems were / does not work
-#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
-//#define FILE_NAME "C:\\Users\\Ofer\\Source\\Repos\\KMeansProject\\Kmeans\\cluster2Hexagon.txt"
+//#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
+#define FILE_NAME "C:\\Users\\Ofer\\Source\\Repos\\KMeansProject\\Kmeans\\cluster2Hexagon.txt"
 
 
 //#define FILE_NAME "D:\\cluster1.txt"
@@ -578,8 +578,8 @@ void initializeWithGpuReduction()
 
 		//// ** reClusterWithCuda  -----		THREADS_PER_BLOCK * (1 * sizeof(float) + 3 * sizeof(unsigned int) + 2 * sizeof(int));
 		//// ** kDiamBlockWithCuda -----		THREADS_PER_BLOCK * (4 * sizeof(float) + 2 * sizeof(unsigned int) + 4 * sizeof(int));	                                                            
-		//// Profiled MAX per thread = 37
-		const int profiledRegistersPerThread = 37;
+		//// Profiled MAX per thread = 39
+		const int profiledRegistersPerThread = 39;
 		const int regMultiple = 4; // power of 2!
 		// round regs per thread up to a multiple of regMultiple and calc total regs per block
 		// assumes multiple is a power of 2!
@@ -617,7 +617,7 @@ void initializeWithGpuReduction()
 				"  Concurrent Kernels used:                   %7d\n"
 				"  THREADS_PER_BLOCK:                         %7d /%7d\n"
 				"  Per block Shared memory usage:             %7lu /%7lu bytes\n"
-				"  Per block register usage (profiled):       %7d /%7d\n\n", _gpuReduction, ((props.concurrentKernels)? NUM_CONCUR_KERNELS:1),
+				"  Requested registers per block (generic compilation):       %7d /%7d\n\n", _gpuReduction, ((props.concurrentKernels)? NUM_CONCUR_KERNELS:1),
 				THREADS_PER_BLOCK, props.maxThreadsPerBlock,
 				maxRequestedSharedMemBytes, props.sharedMemPerBlock,
 				RequestedRegistersPerBlock, props.regsPerBlock); FF;
