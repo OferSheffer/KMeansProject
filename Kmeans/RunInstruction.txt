@@ -54,48 +54,55 @@ Quality work complete:   ***  0.124411  *** Smaller than 0.500000?  * 1 *
 run-time: 270.511273
 
 
-***************************************************************************************************
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Current result (2 Concurrent Kernels, 1 Process: my lap-top)
-------------------------------------------------------------
+*******************************************************************************************************************
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Current result (16 Concurrent Kernels, 2 Blocks per grid, 32 Registers limit, 1 Process: my lap-top -- 500K points)
+-------------------------------------------------------------------------------------------------------------------
 
 > Compute 5.0 CUDA device: [GeForce 830M]
   Kernel/Gpu run with 2^0 reduction factor
-  Concurrent Kernels used:                         2
+  Concurrent Kernels used:                        16
   THREADS_PER_BLOCK:                            1024 /   1024
   Per block Shared memory usage:                8192 /  49152 bytes
-  Per block register usage (profiled):         37888 /  65536
+  Per block register usage (profiled):         40960 /  65536
 
-		*************************************
-		*****                          ******
-		*****     Kmeans algorithm     ******
-		*****   Author: Ofer Sheffer   ******
-		*****                          ******
-		*************************************
-		N=100000, Max=4, LIMIT=20, QM=0.500000
+                *************************************
+                *****                          ******
+                *****     Kmeans algorithm     ******
+                *****   Author: Ofer Sheffer   ******
+                *****                          ******
+                *************************************
+                N=100000, Max=4, LIMIT=20, QM=0.500000
 
 
 
 Quality work complete:   ***  2.020083  *** Smaller than 0.500000?  * 0 *
 
 *********************************************
-run-time: 9.580969
+run-time: 0.847953
 
-Quality work complete:   ***  1.859849  *** Smaller than 0.500000?  * 0 *
-
-*********************************************
-run-time: 18.815093
-
-Quality work complete:   ***  0.151798  *** Smaller than 0.500000?  * 1 *
+Quality work complete:   ***  1.859856  *** Smaller than 0.500000?  * 0 *
 
 *********************************************
-run-time: 24.323244
+run-time: 1.557341
+
+Quality work complete:   ***  0.151796  *** Smaller than 0.500000?  * 1 *
+
+*********************************************
+run-time: 2.107579
 Master 0 - kCentersX0-3: -0.497127, -0.500514, 99.499268, 99.500381
 Master 0 - kCentersY0-3: -0.501050, 99.498711, 99.501183, -0.497691
 ********************************************************
 
 
-Quality work complete:   ***  0.151798  *** Smaller than 0.500000?  * 1 *
+Quality work complete:   ***  0.151796  *** Smaller than 0.500000?  * 1 *
 
 *********************************************
-run-time: 24.323257
+run-time: 2.109556
+
+
+
+-------------------------------------------------------------------------------------------------------------------
+Current result (16 Concurrent Kernels, 2 Blocks per grid, 32 Registers limit, 1 Process: my lap-top -- 500K points)
+run-time: 33.572414
+Press any key to continue . . .
