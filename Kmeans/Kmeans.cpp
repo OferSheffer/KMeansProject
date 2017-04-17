@@ -6,8 +6,8 @@ Author: Ofer Sheffer, 1 April 2017
 #include "Kmeans.h"
 
 //NOTE: use \\ in systems were / does not work
-#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
-//#define FILE_NAME "C:\\Users\\Ofer\\Source\\Repos\\KMeansProject\\Kmeans\\cluster2Hexagon.txt"
+//#define FILE_NAME "C:\\Users\\MPICH\\Documents\\Visual Studio 2015\\Projects\\KMeansProject\\Kmeans\\cluster1.txt"
+#define FILE_NAME "C:\\Users\\Ofer\\Source\\Repos\\KMeansProject\\Kmeans\\cluster2Hexagon.txt"
 
 
 //#define FILE_NAME "D:\\cluster1.txt"
@@ -492,9 +492,9 @@ jobs[jidx++] = j;
 return jobs;
 } */
 
-int* initJobArray(int NO_BLOCKS, int fact)
+int* initJobArray(int NO_BLOCKS, int JOBS)
 {   /* jobs array set for blocks of size 2 (skip cout by 2) */
-	int* jobs = (int*)malloc(2 * fact * sizeof(int));
+	int* jobs = (int*)malloc(2 * JOBS * sizeof(int));
 	int jidx = 0;
 	for (int i = 0; i < NO_BLOCKS; i += 2)
 		for (int j = 0; j < NO_BLOCKS; j += 2)
@@ -506,6 +506,10 @@ int* initJobArray(int NO_BLOCKS, int fact)
 			}
 
 		}
+#ifdef _DEBUGJOBARR
+	printf("Debug Job Array:\n"
+		"jidx = %d", jidx); FF;
+#endif
 	return jobs;
 }
 
@@ -621,6 +625,9 @@ void initializeWithGpuReduction()
 				THREADS_PER_BLOCK, props.maxThreadsPerBlock,
 				maxRequestedSharedMemBytes, props.sharedMemPerBlock,
 				RequestedRegistersPerBlock, props.regsPerBlock); FF;
+#ifdef _MANUAL_INFINITY
+			printf("  MANUAL_INFINITY set. Point X-Y values limited to (-2^%d, 2^%d)\n\n", 25, 25); FF;
+#endif
 			break;
 		}
 	}	// while

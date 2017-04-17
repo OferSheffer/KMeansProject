@@ -22,7 +22,7 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 	unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int ltid = threadIdx.x;
 	int prevPka;
-	// for every point: save idx where min(distance from k[idx]	
+	// for every point: save idx where min(distance from k[idx])
 	if (tid < size)
 	{
 		dShared_kaFlags[ltid] = false; // no changes yet
@@ -68,10 +68,10 @@ __global__ void reClusterWithCuda(xyArrays* d_kCenters, const int ksize, xyArray
 	}
 }
 
-// Helper for kDiamBlockWithCuda
+// AtomicMax(float global, value) helper for kDiamBlockWithCuda
 __device__ void AtomicMax(float * const address, const float value)
 {
-	if (*address >= value)
+	if (*address >= value) // TODO: bottleneck? malloc locally per stream / SM?
 	{
 		return;
 	}
@@ -94,7 +94,6 @@ __device__ void AtomicMax(float * const address, const float value)
 //Note: will be x2 faster with smaller blocks -- but will require (^2/numproc) runs
 __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays* d_xya, int* pka, const int size, const int blkAIdx, const int blkBIdx)
 {
-	// if (blockIdx.x != blkAIdx) return;
 	extern __shared__ float dShared_SquaredXYAB[]; // save squared values for reuse
 	float XAP0, YAP0, XAP1, YAP1;
 
@@ -159,7 +158,7 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 			__syncthreads();
 		}
 
-		if (blockIdx.x == 1)
+		if (blockIdx.x == 1) // TODO: set to 1 for 2 SMs
 		{
 			if (tidB + blockDim.x < size)
 			{
@@ -191,7 +190,7 @@ __global__ void kDiamBlockWithCuda(float* kDiameters, const int ksize, xyArrays*
 			}
 		}
 		AtomicMax(&(kDiameters[myK0]), sqrtf(max0));
-		AtomicMax(&(kDiameters[myK1]), sqrtf(max1));
+		if (myK1 != -1) AtomicMax(&(kDiameters[myK1]), sqrtf(max1));
 	}
 }
 
@@ -470,12 +469,15 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 			{ 
 				streamIdx = 0;
 				if (resultsCounter + NUM_CONCUR_KERNELS - 1 < NO_JOBS) numJobsCounter = NUM_CONCUR_KERNELS;
-				else numJobsCounter = NO_JOBS - x;
+				else numJobsCounter = NO_JOBS - resultsCounter;
 
 				for (int i = 0; i < numJobsCounter; i++)
 				{
 #ifdef _DEBUGJOBS
-					printf("Proc %d, working on jobForBlocks %2d, %2d (stream %d)\n", myid, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1], streamIdx); fflush(stdout);
+					if (jobs[2 * resultsCounter + 1] < 0)
+					{
+						printf("Proc %d, working on jobForBlocks %2d, %2d (stream %d)\n", myid, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1], streamIdx); fflush(stdout);
+					}
 #endif
 					kDiamBlockWithCuda << <2, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobs[2 * resultsCounter], jobs[2 * resultsCounter + 1]);
 					resultsCounter++;
@@ -549,7 +551,7 @@ cudaError_t kDiametersWithCuda(float* kDiameters, int ksize, xyArrays* xya, int*
 					printf("Proc %d, working on jobForBlocks %2d, %2d, streamIdx %d\n", myid, jobForBlocks[0], jobForBlocks[1], streamIdx); fflush(stdout);
 #endif
 					// queue nkernels in separate streams and record when they are done
-					kDiamBlockWithCuda << <1, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobForBlocks[0], jobForBlocks[1]);
+					kDiamBlockWithCuda << <2, THREADS_PER_BLOCK, SharedMemBytes, streams[streamIdx] >> > (d_kDiameters, ksize, d_xya, d_pka, N, jobForBlocks[0], jobForBlocks[1]);
 					cudaStatus = cudaGetLastError();
 					if (cudaStatus != cudaSuccess) {
 						fprintf(stderr, "id: %d, kDiamBlockWithCuda<<%d, %d, %d, %d>> launch failed for data: %ld, %d, %d\n",

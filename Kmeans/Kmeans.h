@@ -17,14 +17,15 @@
 // GPU DEFINITIONS
 //***********************************
 #define BASE_THREADS_PER_BLOCK 1024
-#define NUM_CONCUR_KERNELS 8	// concurrent kernels
+#define WARP_SIZE 32
+#define NUM_CONCUR_KERNELS 2	// concurrent kernels
 
 void initializeWithGpuReduction();
 
 //**********************************
 //#define _RUNAFEKA
 //#define _DEBUGV						// verbose
-//#define _PROFILE_BLOCKS_TO_JOBS		// print #blocks and #jobs
+#define _PROFILE_BLOCKS_TO_JOBS		// print #blocks and #jobs
 #define _TIME						// time output
 #define _TIMEK						// time per ksize
 //#define _PROF_DIAM_BLOCK_KERNEL		// time diametersCuda kernel operation on 0,0 (0.008*5050 ~= 40sec)
@@ -33,14 +34,16 @@ void initializeWithGpuReduction();
 
 //#define _DEBUGPOINTSREADFROMFILE		// xya values read from 
 //#define _DEBUGNVAL					// verify N in malloc
-//#define _DEBUGJOBS					// which process is working on which job block
+//#define _DEBUGJOBARR				// review job array values
+#define _DEBUGJOBS					// which process is working on which job block
 //#define _DEBUG1						// temp kDiameters values
 //#define _DEBUG2						// low level progress
 //#define _DEBUG4						// diameters final for ksize
 #define _DEBUG5						// QM values test
 
 #ifndef INFINITY
-#define INFINITY 1000000000000000
+#define INFINITY 1126000000000000
+#define _MANUAL_INFINITY
 #endif
 
 // SoA: reduce load/store operations

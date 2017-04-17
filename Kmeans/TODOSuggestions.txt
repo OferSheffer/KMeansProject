@@ -1,5 +1,3 @@
-1. use more than 1 block in my grid (try 2)
-
 2. Consider reducing CUDA "diameter in blocks" load times by loading exact block data into GPU.
 
 3. CUDA resource review (for max occupancy): 
@@ -7,52 +5,18 @@
 
 ****   CUDA Occupancy calculator   ****
 		1.) Select Compute Capability (click):	5.0
-		1.b) Select Shared Memory Size Config (bytes)	65536
-		
-		Threads Per Block	1024
 		Registers Per Thread	32                            !!!!!
-		Shared Memory Per Block (bytes)	2048
-	
-		3.) GPU Occupancy Data is displayed here and in the graphs:	
-		Active Threads per Multiprocessor	2048
-		Active Warps per Multiprocessor	64
-		Active Thread Blocks per Multiprocessor	2
-		Occupancy of each Multiprocessor	100%
-
 --------------------
 		1.) Select Compute Capability (click):	2.0
-		1.b) Select Shared Memory Size Config (bytes)	65536
-	
-		2.) Enter your resource usage:	
-		Threads Per Block	512
 		Registers Per Thread	16/20                            !!!!!
-		Shared Memory Per Block (bytes)	1024
-	
-		3.) GPU Occupancy Data is displayed here and in the graphs:	
-		Active Threads per Multiprocessor	1536
-		Active Warps per Multiprocessor	48
-		Active Thread Blocks per Multiprocessor	3
-		Occupancy of each Multiprocessor	100%
-
-4. compiler uses aggressive optimization strategies that include code reordering,
-register re-use, spilling to local memory !!!
-dead code removal, result computation during compilation,
-function in-lining and a whole bunch of other stuff.
+		
 --maxrregcount for a hard limit. Usually it will result in more spilling to local memory
 
+4. Got double value from 2 streams. Got double value from 2 blocks.
+   Not getting x4 value from using both. Occupancy 50% with SM2 appearing to have no work (My Maxwell).
 
-
-
-17. I'm still getting occupancy 50% with SM2 appearing to have no work (My Maxwell).
-
-
-
-Why is my limit at about 205000 points?   (Missing: handling of super large data: currently, master puts it all in the kCenters kernel)
-Why am I only using 1 SM out of 2?
 Why are 2 streams almost the same run-time as 8?
-Big impact! less blocks: rework to allow blocks to do more work. (1 kernel now does 2 by 2)
-
-
+Big impact! less blocks: rework to allow blocks to do more work? (1 kernel now does 2 by 2)
 
 Later: use helper_cuda.h: macros getLastCudaError & checkCudaErrors (See the samples)
 
@@ -77,3 +41,7 @@ Later:
 	//non-blocking recv from slaves;
 	// }
 	*/
+
+Later:
+AtomicMax: if (*address >= value) // TODO: bottleneck? malloc locally per stream / SM?
+
