@@ -56,7 +56,7 @@ run-time: 270.511273
 
 *******************************************************************************************************************
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Current result (16 Concurrent Kernels, 2 Blocks per grid, 32 Registers limit, 1 Process: my lap-top -- 500K points)
+Current result (16 Concurrent Kernels, 2 Blocks per grid, 32 Registers limit, 1 Process: my lap-top -- 100K points)
 -------------------------------------------------------------------------------------------------------------------
 
 > Compute 5.0 CUDA device: [GeForce 830M]

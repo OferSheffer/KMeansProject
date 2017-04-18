@@ -44,4 +44,3 @@ Later:
 
 Later:
 AtomicMax: if (*address >= value) // TODO: bottleneck? malloc locally per stream / SM?
-
